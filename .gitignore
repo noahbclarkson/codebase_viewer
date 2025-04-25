@@ -1,0 +1,32 @@
+# Rust / Cargo
+/target/
+Cargo.lock # Usually committed for applications, but can be ignored if preferred
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Build Artifacts / Logs (if any outside target/)
+*.log
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.o
+
+# Environment Variables (if used)
+.env*
+
+# Secrets (if any - should not be in repo!)
+*.secret
+*.key

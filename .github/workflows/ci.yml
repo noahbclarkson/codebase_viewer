@@ -1,0 +1,55 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [ "main" ] # Or your default branch name
+  pull_request:
+    branches: [ "main" ] # Or your default branch name
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+    name: Test on ${{ matrix.os }} (Rust stable)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # Don't cancel other jobs if one fails
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Rust toolchain (stable)
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        # Key based on OS, toolchain, and Cargo.lock hash
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Run Clippy (Fail on warnings)
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Run tests
+      run: cargo test --all-features --verbose # Add --verbose for more output
+
+    - name: Build release executable
+      run: cargo build --release --all-features --verbose
