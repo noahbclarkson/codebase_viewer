@@ -79,7 +79,7 @@ jobs:
 
       - name: Install cross (if needed)
         if: matrix.use-cross
-        run: cargo install cross --git https://github.com/cross-rs/cross --rev main # Install latest cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Install Linux dependencies (if needed)
         if: runner.os == 'Linux' && matrix.deps != ''
