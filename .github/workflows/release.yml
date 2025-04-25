@@ -1,0 +1,208 @@
+name: Release Build & Upload
+
+# Trigger this workflow when a tag starting with 'v' (e.g., v0.1.0) is pushed
+on:
+  push:
+    tags:
+      - 'v*' # Matches v1.2.3, v0.1.0, etc.
+
+# Set default shell for run steps
+defaults:
+  run:
+    shell: bash
+
+# Environment variables available to all jobs and steps
+env:
+  CARGO_TERM_COLOR: always
+  # Set your binary name here
+  BINARY_NAME: codebase_viewer
+
+# Permissions needed for the workflow to create releases and upload assets
+permissions:
+  contents: write # Allow creating releases and uploading assets
+
+jobs:
+  # Job to build the application for different targets
+  build_release:
+    name: Build ${{ matrix.target }}
+    # Run jobs on the operating system specified in the matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Don't cancel other jobs if one fails
+      fail-fast: false
+      # Define the build matrix for different targets and OSes
+      matrix:
+        include:
+          # --- Linux ---
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu # Standard Linux GNU
+            use-cross: false # Use native build on Linux runner
+            archive-type: tar.gz
+            deps: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librust-alsa-sys-dev librust-dbus-dev # Dependencies for eframe/winit on Ubuntu
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl # Static Linux MUSL
+            use-cross: true # Use cross for MUSL builds
+            archive-type: tar.gz
+            deps: # No apt deps needed for MUSL build itself via cross
+
+          # --- macOS ---
+          - os: macos-latest # This typically runs on Intel macOS
+            target: x86_64-apple-darwin # Build for Intel macOS
+            use-cross: false
+            archive-type: zip
+            deps: # macOS runners usually have necessary SDKs
+
+          # Optional: Add aarch64-apple-darwin if you need native Apple Silicon builds
+          # Requires a runner that supports it (e.g., macos-14 or specific larger runners)
+          # - os: macos-14 # Example runner for ARM
+          #   target: aarch64-apple-darwin
+          #   use-cross: false
+          #   archive-type: zip
+          #   deps:
+
+          # --- Windows ---
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu # Use GNU toolchain for easier setup in CI
+            use-cross: false # Native build on Windows runner
+            archive-type: zip
+            deps: # Windows runners usually have necessary build tools
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # Add the target triple to the toolchain installation
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (if needed)
+        if: matrix.use-cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --rev main # Install latest cross
+
+      - name: Install Linux dependencies (if needed)
+        if: runner.os == 'Linux' && matrix.deps != ''
+        run: ${{ matrix.deps }}
+
+      # Cache dependencies to speed up builds
+      - name: Cache Cargo registry and index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
+
+      - name: Build binary
+        # Determine build command based on whether cross is used
+        run: |
+          if [[ "${{ matrix.use-cross }}" == "true" ]]; then
+            cross build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+
+      - name: Prepare package directory and files
+        run: |
+          # Determine platform-specific details
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            EXE_SUFFIX=".exe"
+            OS_NAME="windows"
+            ARCH="x64" # Assuming x86_64 target
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            EXE_SUFFIX=""
+            OS_NAME="macos"
+            # Determine arch based on target (simple check)
+            if [[ "${{ matrix.target }}" == "aarch64-apple-darwin" ]]; then
+              ARCH="arm64"
+            else
+              ARCH="x64"
+            fi
+          else # Linux
+            EXE_SUFFIX=""
+            OS_NAME="linux"
+            # Determine arch/libc based on target
+            if [[ "${{ matrix.target }}" == "x86_64-unknown-linux-musl" ]]; then
+              ARCH="x64-musl"
+            else
+              ARCH="x64-gnu"
+            fi
+          fi
+
+          # Define paths
+          TARGET_DIR="target/${{ matrix.target }}/release"
+          PACKAGE_NAME="${{ env.BINARY_NAME }}-v${GITHUB_REF_NAME#refs/tags/v}-${OS_NAME}-${ARCH}"
+          ARCHIVE_NAME="${PACKAGE_NAME}.${{ matrix.archive-type }}"
+          PACKAGE_DIR="./${PACKAGE_NAME}" # Create package dir in workspace root
+
+          # Create directory
+          mkdir -p "${PACKAGE_DIR}"
+
+          # Copy files
+          cp "${TARGET_DIR}/${{ env.BINARY_NAME }}${EXE_SUFFIX}" "${PACKAGE_DIR}/"
+          cp LICENSE-MIT LICENSE-APACHE README.md "${PACKAGE_DIR}/"
+
+          # Create archive
+          if [[ "${{ matrix.archive-type }}" == "zip" ]]; then
+            if [[ "${{ runner.os }}" == "Windows" ]]; then
+              powershell Compress-Archive -Path "${PACKAGE_DIR}/*" -DestinationPath "${ARCHIVE_NAME}"
+            else
+              zip -r "${ARCHIVE_NAME}" "${PACKAGE_DIR}"
+            fi
+          else # tar.gz
+            tar -czvf "${ARCHIVE_NAME}" "${PACKAGE_DIR}"
+          fi
+
+          # Store archive name for upload step
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> $GITHUB_ENV
+        env:
+          # Get the tag name (e.g., v0.1.0) from the ref
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE_NAME }} # Use the calculated archive name
+          path: ${{ env.ARCHIVE_NAME }} # Path to the archive file created in the previous step
+
+  # Job to create the GitHub Release and upload the built artifacts
+  create_release:
+    name: Create GitHub Release
+    # This job runs only after all build jobs in the matrix have succeeded
+    needs: build_release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          # No name specified means download all artifacts from the workflow run
+          path: artifacts # Download into an 'artifacts' directory
+
+      - name: List downloaded files (for debugging)
+        run: ls -R artifacts
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          # Use the tag name that triggered the workflow
+          tag_name: ${{ github.ref_name }}
+          # Use the tag name as the release name
+          name: Release ${{ github.ref_name }}
+          # Mark as pre-release if the tag contains 'alpha', 'beta', 'rc' etc.
+          prerelease: contains(github.ref_name, '-')
+          # Use GITHUB_TOKEN for authentication
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Upload all files from the 'artifacts' directory subfolders
+          # Adjust the glob pattern if your artifacts aren't nested as expected
+          files: artifacts/*/* # This assumes artifacts are downloaded into subdirs like artifacts/codebase_viewer-v0.1.0-linux-x64.tar.gz/codebase_viewer-v0.1.0-linux-x64.tar.gz
+          # You might need a simpler glob if download-artifact behaves differently:
+          # files: artifacts/*
+          # Optional: Generate release notes automatically from commits (or provide a file)
+          # generate_release_notes: true
+          # body_path: CHANGELOG.md # Or point to your changelog
