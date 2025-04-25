@@ -2,52 +2,63 @@ name: release
 
 on:
   push:
-    tags:
-      - 'v*'        
-  workflow_dispatch: {}  
+    tags: ['v*']          # autobuild on tags
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.4.2). Leave blank for snapshot'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
 
 env:
   CARGO_TERM_COLOR: always
   BINARY_NAME: codebase_viewer
 
-permissions:
-  contents: write
-
 jobs:
   build:
     name: build-${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    outputs:
+      version: ${{ steps.version.outputs.ver }}
+    defaults:
+      run:
+        shell: bash        # force bash everywhere
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Linux
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            use_cross: false
             archive_type: tar.gz
+            use_cross: false
             deps: |
-              sudo apt-get update &&
+              sudo apt-get update -y &&
               sudo apt-get install -y \
                 libgtk-3-dev libwebkit2gtk-4.1-dev \
                 libayatana-appindicator3-dev librust-alsa-sys-dev librust-dbus-dev
-
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            use_cross: true
             archive_type: tar.gz
+            use_cross: true
             deps: ""
 
+          # macOS
           - os: macos-latest
             target: x86_64-apple-darwin
-            use_cross: false
             archive_type: zip
+            use_cross: false
             deps: ""
 
+          # Windows
           - os: windows-latest
             target: x86_64-pc-windows-gnu
-            use_cross: false
             archive_type: zip
-            deps: ""
+            use_cross: false
+            deps: ""     # mingw installed in separate pwsh step
 
     steps:
       - uses: actions/checkout@v4
@@ -60,11 +71,30 @@ jobs:
         if: ${{ matrix.use_cross }}
         run: cargo install cross --git https://github.com/cross-rs/cross
 
-      - name: system deps
-        if: ${{ runner.os == 'Linux' && matrix.deps != '' }}
+      - name: system deps (Linux/macOS)
+        if: ${{ matrix.deps != '' }}
         run: ${{ matrix.deps }}
 
+      - name: install mingw (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install -y mingw
+
       - uses: Swatinem/rust-cache@v2
+
+      - name: compute version
+        id: version
+        run: |
+          if [[ -n "${INPUT_VERSION}" ]]; then
+            ver="${INPUT_VERSION}"
+          elif [[ "${GITHUB_REF}" =~ ^refs/tags/v(.+)$ ]]; then
+            ver="${BASH_REMATCH[1]}"
+          else
+            ver="snapshot-${GITHUB_SHA:0:7}"
+          fi
+          echo "ver=$ver" >> "$GITHUB_OUTPUT"
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
 
       - name: build
         run: |
@@ -75,40 +105,47 @@ jobs:
           fi
 
       - name: package
+        id: package
+        env:
+          VER: ${{ steps.version.outputs.ver }}
         run: |
           case "${{ runner.os }}" in
-            Windows) ext=".exe";   os_name="windows"; arch="x64" ;;
-            macOS)   ext="";       os_name="macos";   arch="x64" ;;
-            Linux)
-              ext=""; os_name="linux"
-              [[ "${{ matrix.target }}" == "x86_64-unknown-linux-musl" ]] && arch="x64-musl" || arch="x64-gnu"
-              ;;
+            Windows) exe=".exe"; os_name=windows ;;
+            macOS)   exe="";     os_name=macos   ;;
+            *)       exe="";     os_name=linux   ;;
           esac
 
-          ver="${GITHUB_REF##refs/tags/v}"
-          pkg="${{ env.BINARY_NAME }}-v${ver}-${os_name}-${arch}"
+          if [[ "${{ matrix.target }}" == *musl* ]]; then
+            arch="x64-musl"
+          elif [[ "${{ matrix.target }}" == *gnu* && "${{ runner.os }}" == "Linux" ]]; then
+            arch="x64-gnu"
+          else
+            arch="x64"
+          fi
+
+          pkg="${BINARY_NAME}-v${VER}-${os_name}-${arch}"
           archive="${pkg}.${{ matrix.archive_type }}"
 
           mkdir "$pkg"
-          cp "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}${ext}" "$pkg/"
+          cp "target/${{ matrix.target }}/release/${BINARY_NAME}${exe}" "$pkg/"
           cp LICENSE-* README.md "$pkg/"
 
           if [[ "${{ matrix.archive_type }}" == "zip" ]]; then
             if [[ "${{ runner.os }}" == "Windows" ]]; then
-              powershell Compress-Archive -Path "$pkg/*" -DestinationPath "$archive"
+              powershell -Command "Compress-Archive -Path '${pkg}\\*' -DestinationPath '${archive}'"
             else
-              zip -r "$archive" "$pkg"
+              zip -r "${archive}" "${pkg}"
             fi
           else
-            tar -czf "$archive" "$pkg"
+            tar -czf "${archive}" "${pkg}"
           fi
 
-          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+          echo "archive_name=${archive}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARCHIVE }}
-          path: ${{ env.ARCHIVE }}
+          name: ${{ steps.package.outputs.archive_name }}
+          path: ${{ steps.package.outputs.archive_name }}
 
   release:
     needs: build
@@ -118,13 +155,14 @@ jobs:
         with:
           path: artifacts
 
-      - run: ls -R artifacts
+      - name: list artifacts
+        run: ls -R artifacts
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', needs.build.outputs.version) }}
+          name: Release ${{ needs.build.outputs.version }}
+          prerelease: ${{ contains(needs.build.outputs.version, '-') }}
           files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
