@@ -1,11 +1,11 @@
 [package]
 name = "codebase_viewer"
-version = "0.1.0" # Updated for first release
-edition = "2021" # Stick with 2021 unless 2024 features are essential
+version = "0.1.0"
+edition = "2021"
 authors = ["Noah Clarkson <mrnoahclarkson@gmail.com>"]
 description = "A cross-platform desktop tool written in Rust to scan, explore, and document codebases using egui."
 repository = "https://github.com/noahbclarkson/codebase_viewer"
-license = "Apache-2.0"
+license = "Apache-2.0 OR MIT"
 keywords = ["gui", "egui", "codebase", "developer-tools", "scan", "documentation", "viewer"]
 categories = ["development-tools", "gui"]
 readme = "README.md"

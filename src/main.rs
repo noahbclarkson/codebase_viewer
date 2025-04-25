@@ -51,7 +51,7 @@ fn main() -> eframe::Result<()> {
 
     // Run the eframe application
     eframe::run_native(
-        "codebase_viewer_rs", // Unique ID for app state persistence
+        "codebase_viewer", // Unique ID for app state persistence
         native_options,
         // Closure to create the App instance
         Box::new(move |cc| {

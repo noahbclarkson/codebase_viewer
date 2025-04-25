@@ -347,7 +347,6 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
             // --- Help Menu ---
             ui.menu_button("Help", |ui| {
                 // Link to repository or documentation website
-                // <-- EDIT URL -->
                 let doc_url = "https://github.com/noahbclarkson/codebase_viewer";
                 if ui.button("Documentation / Source Code").clicked() {
                     ui.close_menu();

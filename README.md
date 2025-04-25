@@ -24,7 +24,7 @@ The UI is built with [egui](https://github.com/emilk/egui) via *eframe*, giving 
 
 ```bash
 # 1. Clone and build in release mode
-git clone https://github.com/noahbclarkson/codebase_viewer.git # <-- EDIT URL
+git clone https://github.com/noahbclarkson/codebase_viewer.git
 cd codebase_viewer
 cargo run --release
 
@@ -47,9 +47,9 @@ Choose Markdown / HTML / Text, select options, and hit **Generate**
 
 A JSON config (`config.json`) is auto-saved to the standard user configuration directory:
 
-* **Linux:** `$HOME/.config/codebase_viewer_rs/`
-* **Windows:** `%APPDATA%\codebase_viewer_rs\`
-* **macOS:** `~/Library/Application Support/codebase_viewer_rs/`
+* **Linux:** `$HOME/.config/codebase_viewer/`
+* **Windows:** `%APPDATA%\codebase_viewer\`
+* **macOS:** `~/Library/Application Support/codebase_viewer/`
 
 Key fields:
 
@@ -99,10 +99,15 @@ src/
 
 ## 🖼️ Screenshots
 
-<!-- Add screenshots after taking them -->
-[Screenshot Placeholder: Main Window]
-[Screenshot Placeholder: Report Options Dialog]
-[Screenshot Placeholder: Preferences Dialog]
+![Main Window](screenshots/main_window.png)
+
+---
+
+![Preferences Dialog](screenshots/preferences_dialog.png)
+
+---
+
+![Report Options Dialog](screenshots/report_options_dialog.png)
 
 ## 🛠️ Development
 
@@ -122,14 +127,6 @@ cargo run
 # Run optimized release build
 cargo run --release
 ```
-
-### Feature flags
-
-| Flag                              | Effect                                           | Default |
-| --------------------------------- | ------------------------------------------------ | ------- |
-| `persistence` (via eframe)        | Enables automatic window-state saving via eframe | Yes     |
-| `glow` (via eframe)               | Uses Glow backend for rendering (default)        | Yes     |
-| *(none specific to this app yet)* |                                                  |         |
 
 ### Performance tips
 

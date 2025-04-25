@@ -310,7 +310,7 @@ pub fn draw_about_window(app: &mut CodebaseApp, ctx: &Context) {
                 // Use a relevant icon if desired, e.g., INFO or CODE
                 ui.label(RichText::new(CODE).size(48.0));
                 ui.add_space(5.0);
-                ui.heading("Codebase Viewer RS");
+                ui.heading("Codebase Viewer");
                 ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
                 ui.add_space(10.0);
                 ui.label("A tool for exploring and documenting code repositories.");
@@ -318,12 +318,10 @@ pub fn draw_about_window(app: &mut CodebaseApp, ctx: &Context) {
                 ui.add_space(10.0);
                 ui.separator();
                 ui.add_space(10.0);
-                // <-- EDIT Author Name -->
-                ui.label("© 2024-2025 Noah Clarkson");
-                // <-- EDIT Repository URL -->
+                ui.label("© 2024-2025 Noah B. Clarkson");
                 ui.hyperlink_to(
                     "View Source on GitHub",
-                    "https://github.com/yourusername/codebase-viewer-rs",
+                    "https://github.com/noahbclarkson/codebase_viewer",
                 );
                 ui.add_space(15.0);
                 if ui.button("Close").clicked() {

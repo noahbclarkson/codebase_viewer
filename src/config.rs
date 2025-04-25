@@ -195,11 +195,11 @@ impl AppConfig {
 
 /// Returns the platform-specific configuration directory path for this application.
 /// Uses `dirs-next` crate for reliable paths.
-/// Example: `~/.config/codebase_viewer_rs` on Linux.
+/// Example: `~/.config/codebase_viewer` on Linux.
 pub fn config_dir() -> anyhow::Result<PathBuf> {
     dirs_next::config_dir()
         .ok_or_else(|| anyhow::anyhow!("Could not determine user config directory"))?
-        .join("codebase_viewer_rs") // App-specific subdirectory
+        .join("codebase_viewer") // App-specific subdirectory
         .pipe(Ok) // Use std::pipe::Pipe::pipe for cleaner chaining
 }
 

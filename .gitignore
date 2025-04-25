@@ -1,6 +1,5 @@
 # Rust / Cargo
 /target/
-Cargo.lock # Usually committed for applications, but can be ignored if preferred
 
 # IDEs / Editors
 .vscode/
