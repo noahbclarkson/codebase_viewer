@@ -204,5 +204,5 @@ jobs:
           # You might need a simpler glob if download-artifact behaves differently:
           # files: artifacts/*
           # Optional: Generate release notes automatically from commits (or provide a file)
-          # generate_release_notes: true
+          generate_release_notes: true
           # body_path: CHANGELOG.md # Or point to your changelog
