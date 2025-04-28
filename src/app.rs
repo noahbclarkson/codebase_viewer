@@ -819,7 +819,7 @@ impl CodebaseApp {
 
         // Add the node to the arena *first*
         self.nodes.push(node); // node is moved here
-        // Populate the path map *after* pushing the node
+                               // Populate the path map *after* pushing the node
         self.path_to_id_map.insert(node_path.clone(), node_id);
 
         // --- Root Node Handling ---

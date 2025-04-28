@@ -5,6 +5,7 @@ use crate::{
     model::FileNode,
     task::ScanMessage,
 };
+use crossbeam_channel::select;
 use crossbeam_channel::Sender;
 use ignore::{WalkBuilder, WalkState};
 use std::{
@@ -16,8 +17,7 @@ use std::{
     thread,
     thread::JoinHandle,
     time::{Duration, Instant}, // Added for batch timeout
-};
-use crossbeam_channel::select; // Added for select! macro
+}; // Added for select! macro
 
 /// Defines the maximum number of nodes to buffer before sending a batch.
 const BATCH_SIZE: usize = 100;
@@ -121,16 +121,21 @@ fn scan_worker(
                                 let node = FileNode::new(file_info);
                                 // Send Ok(node) to the intermediate channel
                                 if node_tx.send(Ok(node)).is_err() {
-                                    log::warn!("Local node send failed: Channel closed. Quitting walk.");
+                                    log::warn!(
+                                        "Local node send failed: Channel closed. Quitting walk."
+                                    );
                                     return WalkState::Quit;
                                 }
                             }
                             Err(e) => {
-                                let error_msg = format!("Failed to process entry '{}': {}", path.display(), e);
+                                let error_msg =
+                                    format!("Failed to process entry '{}': {}", path.display(), e);
                                 log::warn!("{}", error_msg);
                                 // Send Err(msg) to the intermediate channel
                                 if node_tx.send(Err(error_msg)).is_err() {
-                                    log::warn!("Local error send failed: Channel closed. Quitting walk.");
+                                    log::warn!(
+                                        "Local error send failed: Channel closed. Quitting walk."
+                                    );
                                     return WalkState::Quit;
                                 }
                             }
@@ -141,7 +146,9 @@ fn scan_worker(
                         log::error!("{}", error_msg);
                         // Send Err(msg) to the intermediate channel
                         if node_tx.send(Err(error_msg)).is_err() {
-                            log::warn!("Local walk error send failed: Channel closed. Quitting walk.");
+                            log::warn!(
+                                "Local walk error send failed: Channel closed. Quitting walk."
+                            );
                             return WalkState::Quit;
                         }
                     }

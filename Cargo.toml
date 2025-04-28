@@ -38,3 +38,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 regex = "1.11"
 egui-phosphor = "0.9"
 egui_material_icons = "0.3.0"
+
+[profile.release]
+codegen-units = 1
+lto = true

@@ -502,7 +502,7 @@ fn generate_svg_texture(
     resvg::render(
         &tree,
         usvg::Transform::identity(), // Use usvg::Transform
-        &mut pixmap.as_mut(), // Pass mutable reference to PixmapMut
+        &mut pixmap.as_mut(),        // Pass mutable reference to PixmapMut
     );
     // render function returns () on success, errors are typically handled during parsing/pixmap creation
 
@@ -519,13 +519,9 @@ fn generate_svg_texture(
         texture_options,
     );
 
-    log::debug!(
-        "SVG texture generated successfully for: {}",
-        path.display()
-    );
+    log::debug!("SVG texture generated successfully for: {}", path.display());
     Ok(texture_handle)
 }
-
 
 // --- Helper Functions ---
 
