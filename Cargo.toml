@@ -1,6 +1,6 @@
 [package]
 name = "codebase_viewer"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Noah Clarkson <mrnoahclarkson@gmail.com>"]
 description = "A cross-platform desktop tool written in Rust to scan, explore, and document codebases using egui."
