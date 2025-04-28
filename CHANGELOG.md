@@ -1,20 +1,44 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project will be documented in this file.  
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+---
 
 ## [Unreleased]
 
-### Added
+_Nothing yet._
 
-* SVG file preview support using the `resvg` crate.
+[Unreleased]: https://github.com/noahbclarkson/codebase_viewer/compare/v0.1.1...HEAD
+
+---
+
+## [0.1.1] - 2025-04-28
+
+### Added
+- **SVG preview support** via the `resvg` crate.  
+- **Batch scanner messages** (`AddNodes`) to reduce UI overhead on huge codebases.  
+- **Path-to-ID hash map** for O(1) parent look-ups during scans.
 
 ### Changed
+- **Scanner performance** improvements (batched delivery + hash map).  
+- **Release workflow**: simplified build matrix, unified archive naming, automatic version detection, LTO flags.  
+- **CI workflow**: fails on Clippy warnings, runs `cargo audit`, installs **cross** only when needed.  
+- **Logging**: streamlined formatting, richer trace output.  
+- **Cargo.toml**: bumped to `0.1.1`; added `resvg = 0.45.1`.
 
-* Optimized scanner message handling by replacing O(N) path lookup with O(1) HashMap lookup, significantly improving performance for large directories.
-[Unreleased]: https://github.com/noahbclarkson/codebase_viewer/compare/v0.1.0...HEAD
+### Fixed
+- Orphan-node edge cases that sometimes left items out of the tree view.  
+- Windows CI now ensures MinGW is present.
+
+### Removed
+- Generated `codebase_viewer_report.md` (added to `.gitignore`).  
+- Explicit revision pin for **cross** install.
+
+[0.1.1]: https://github.com/noahbclarkson/codebase_viewer/releases/tag/v0.1.1
+
+---
+
 ## [0.1.0] - 2025-04-25
 
 ### Added
@@ -30,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Keyboard shortcuts for common actions.
 * Basic CI setup using GitHub Actions (format, lint, test, build).
 * Project documentation (`README.md`, `CONTRIBUTING.md`, `CHANGELOG.md`).
-* Dual licensing (MIT OR Apache-2.0).
+* Dual licensing (MIT **or** Apache-2.0).
 
 ### Changed
 
@@ -57,3 +81,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Removed unused `pulldown-cmark` dependency.
 * Removed redundant or unhelpful inline comments.
+
+[0.1.0]: https://github.com/noahbclarkson/codebase_viewer/releases/tag/v0.1.0
