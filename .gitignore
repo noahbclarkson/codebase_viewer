@@ -29,3 +29,5 @@ ehthumbs.db
 # Secrets (if any - should not be in repo!)
 *.secret
 *.key
+
+codebase_viewer_report.md
