@@ -10,7 +10,9 @@ use std::path::PathBuf;
 #[derive(Debug)]
 pub enum ScanMessage {
     /// A new file or directory node has been discovered.
-    AddNode(FileNode),
+    AddNode(FileNode), // Keep for potential single-node updates if needed later
+    /// A batch of new file or directory nodes has been discovered.
+    AddNodes(Vec<FileNode>),
     /// An error occurred during scanning (e.g., permission denied).
     Error(String),
     /// A progress update message (e.g., "Scanning file X...").

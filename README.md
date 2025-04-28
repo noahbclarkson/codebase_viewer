@@ -14,6 +14,7 @@ The UI is built with [egui](https://github.com/emilk/egui) via *eframe*, giving 
 | **Selective exports**                | Keep the *full* directory context but choose exactly which files’ contents go into HTML, Markdown, or plain-text reports—ideal for LLM ingestion or documentation.          |
 | **Syntax-highlighted preview**       | On-the-fly colouring courtesy of **syntect**, using Sublime-Text grammars. Supports common text file types.                                                                 |
 | **Image preview**                    | Preview common image formats (PNG, JPG, GIF, BMP, ICO, TIFF) directly within the app.                                                                                       |
+| **SVG preview**                      | Preview Scalable Vector Graphics (.svg) files using the **resvg** crate.                                                                                                    |
 | **Native dialogs & theme awareness** | File/dir pickers via **rfd** and automatic light/dark detection via **dark-light**.                                                                                         |
 | **Cross-thread messaging**           | Non-blocking updates sent through **crossbeam-channel** for MPMC performance, keeping the UI responsive during scans and report generation.                                 |
 | **Human-readable sizes**             | Byte counts formatted with **humansize**.                                                                                                                                   |
@@ -136,7 +137,7 @@ cargo run --release
 
 ## Limitations / Known Issues
 
-* Previewing SVG and PDF files is not currently supported.
+* Previewing PDF files is not currently supported.
 * Web assembly (`wasm`) builds may work but are not actively tested or supported for v0.1.0.
 
 ## 🤝 Contributing

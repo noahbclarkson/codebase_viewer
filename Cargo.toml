@@ -23,6 +23,7 @@ egui_extras = { version = "0.31.1", features = ["image", "serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 rayon = "1.10"
+resvg = "0.45.1"
 humansize = { version = "2.1.3", features = ["impl_style"] }
 ignore = "0.4.23"
 log = "0.4.27"

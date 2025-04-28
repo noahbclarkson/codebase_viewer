@@ -15,7 +15,14 @@ use std::{
     },
     thread,
     thread::JoinHandle,
+    time::{Duration, Instant}, // Added for batch timeout
 };
+use crossbeam_channel::select; // Added for select! macro
+
+/// Defines the maximum number of nodes to buffer before sending a batch.
+const BATCH_SIZE: usize = 100;
+/// Defines the maximum time to wait before sending an incomplete batch.
+const BATCH_TIMEOUT: Duration = Duration::from_millis(50);
 
 /// Spawns a background thread to scan the specified directory.
 ///
@@ -57,106 +64,188 @@ pub fn scan(
 
 /// The core function executed by the scanner thread.
 ///
-/// Configures and runs the `ignore::WalkParallel` iterator, processing
-/// each directory entry and sending messages back to the UI thread.
+/// The core function executed by the scanner thread.
+///
+/// It spawns the parallel directory walk in a sub-thread and then processes
+/// the results, batching them before sending to the main UI thread.
 fn scan_worker(
     root: PathBuf,
     show_hidden: bool,
-    sender: Sender<ScanMessage>,
+    ui_sender: Sender<ScanMessage>, // Renamed for clarity
     cancel_signal: Arc<AtomicBool>,
 ) {
     log::info!("Scan worker started for path: {}", root.display());
 
-    // Configure the parallel directory walker
-    let walker = WalkBuilder::new(&root)
-        .hidden(!show_hidden) // Respect hidden file setting
-        .parents(true) // Include parent directories (needed for structure)
-        .ignore(true) // Enable reading .ignore files
-        .git_global(true) // Respect global gitignore
-        .git_ignore(true) // Respect .gitignore in repository
-        .git_exclude(true) // Respect .git/info/exclude
-        .threads(num_cpus::get().min(8)) // Use multiple threads (up to 8 or num CPUs)
-        .build_parallel(); // Build the parallel walker
+    // Create an intermediate channel for walker threads to send results to this worker thread.
+    // The type is Result<FileNode, String> to handle both successful nodes and errors.
+    let (local_node_tx, local_node_rx) = crossbeam_channel::unbounded::<Result<FileNode, String>>();
 
-    // Run the walker, processing results in parallel closures
-    walker.run(|| {
-        // Clone sender and cancel signal for the closure
-        let sender = sender.clone();
-        let cancel = cancel_signal.clone();
+    // --- Walker Thread ---
+    // Spawn the actual directory walk in a separate thread so the current thread can process results.
+    let walker_cancel_signal = cancel_signal.clone();
+    let walker_thread = thread::spawn(move || {
+        // Configure the parallel directory walker
+        let walker = WalkBuilder::new(&root)
+            .hidden(!show_hidden)
+            .parents(true)
+            .ignore(true)
+            .git_global(true)
+            .git_ignore(true)
+            .git_exclude(true)
+            .threads(num_cpus::get().min(8))
+            .build_parallel();
 
-        // Return a boxed closure that processes each DirEntry result
-        Box::new(move |result| {
-            // Check for cancellation signal before processing each entry
-            if cancel.load(Ordering::Relaxed) {
-                return WalkState::Quit; // Stop walking if cancelled
-            }
+        // Run the walker, processing results in parallel closures
+        walker.run(|| {
+            // Clone sender and cancel signal for the closure
+            let node_tx = local_node_tx.clone(); // Send to the intermediate channel
+            let cancel = walker_cancel_signal.clone();
 
-            match result {
-                Ok(entry) => {
-                    // Skip entries that are symbolic links to avoid cycles and redundant processing
-                    // Note: `ignore` crate might handle some symlink cases, but explicit check is safer.
-                    if entry.file_type().is_some_and(|ft| ft.is_symlink()) {
-                        log::trace!("Skipping symlink: {}", entry.path().display());
-                        return WalkState::Continue;
-                    }
+            // Return a boxed closure that processes each DirEntry result
+            Box::new(move |result| {
+                // Check for cancellation signal
+                if cancel.load(Ordering::Relaxed) {
+                    return WalkState::Quit;
+                }
 
-                    let path = entry.path();
-                    // Attempt to create FileInfo from the entry
-                    match FileInfo::from_entry(&entry) {
-                        Ok(file_info) => {
-                            // Create a FileNode from the FileInfo
-                            let node = FileNode::new(file_info);
-                            // Send the new node back to the UI thread
-                            if sender.send(ScanMessage::AddNode(node)).is_err() {
-                                // If sending fails, the UI thread likely terminated; stop scanning.
-                                log::warn!(
-                                    "Scan AddNode send failed: Channel closed. Quitting walk."
-                                );
-                                return WalkState::Quit;
+                match result {
+                    Ok(entry) => {
+                        if entry.file_type().is_some_and(|ft| ft.is_symlink()) {
+                            log::trace!("Skipping symlink: {}", entry.path().display());
+                            return WalkState::Continue;
+                        }
+
+                        let path = entry.path();
+                        match FileInfo::from_entry(&entry) {
+                            Ok(file_info) => {
+                                let node = FileNode::new(file_info);
+                                // Send Ok(node) to the intermediate channel
+                                if node_tx.send(Ok(node)).is_err() {
+                                    log::warn!("Local node send failed: Channel closed. Quitting walk.");
+                                    return WalkState::Quit;
+                                }
+                            }
+                            Err(e) => {
+                                let error_msg = format!("Failed to process entry '{}': {}", path.display(), e);
+                                log::warn!("{}", error_msg);
+                                // Send Err(msg) to the intermediate channel
+                                if node_tx.send(Err(error_msg)).is_err() {
+                                    log::warn!("Local error send failed: Channel closed. Quitting walk.");
+                                    return WalkState::Quit;
+                                }
                             }
                         }
-                        Err(e) => {
-                            // Failed to process metadata or binary check for an entry
-                            let error_msg =
-                                format!("Failed to process entry '{}': {}", path.display(), e);
-                            log::warn!("{}", error_msg);
-                            // Send the error message back to the UI thread
-                            if sender.send(ScanMessage::Error(error_msg)).is_err() {
-                                log::warn!(
-                                    "Scan Error send failed: Channel closed. Quitting walk."
-                                );
-                                return WalkState::Quit;
-                            }
-                            // Continue walking even if one entry fails
+                    }
+                    Err(e) => {
+                        let error_msg = format!("Filesystem walk error: {}", e);
+                        log::error!("{}", error_msg);
+                        // Send Err(msg) to the intermediate channel
+                        if node_tx.send(Err(error_msg)).is_err() {
+                            log::warn!("Local walk error send failed: Channel closed. Quitting walk.");
+                            return WalkState::Quit;
                         }
                     }
                 }
-                Err(e) => {
-                    // An error occurred during the directory traversal itself
-                    let error_msg = format!("Filesystem walk error: {}", e);
-                    log::error!("{}", error_msg);
-                    // Send the error message back to the UI thread
-                    if sender.send(ScanMessage::Error(error_msg)).is_err() {
-                        log::warn!("Scan Error send failed: Channel closed. Quitting walk.");
-                        return WalkState::Quit;
-                    }
-                    // Continue walking if possible after a traversal error
-                }
-            }
-            WalkState::Continue // Continue to the next entry
-        })
+                WalkState::Continue
+            })
+        });
+        // Implicitly drop local_node_tx here when the walker thread finishes, closing the channel.
+        log::info!("Walker thread finished.");
     });
 
-    // Log whether the scan finished normally or was cancelled
+    // --- Batching and Sending Loop (in scan_worker thread) ---
+    let mut node_batch: Vec<FileNode> = Vec::with_capacity(BATCH_SIZE);
+    let mut last_batch_send_time = Instant::now();
+    // Removed walk_finished variable as it was unused
+
+    loop {
+        // Check for cancellation signal periodically
+        if cancel_signal.load(Ordering::Relaxed) {
+            log::info!("Scan worker detected cancellation signal.");
+            // We still need to process remaining messages from the walker thread
+            // before fully stopping, so we don't break here immediately.
+            // The walker thread itself will quit sending new messages.
+        }
+
+        // Use select! to wait for messages or timeout
+        select! {
+            // Receive results from the intermediate channel
+            recv(local_node_rx) -> msg_result => {
+                match msg_result {
+                    Ok(result) => {
+                        match result {
+                            Ok(node) => {
+                                node_batch.push(node);
+                                // Send batch if full
+                                // Send batch if full (Combined condition to fix clippy::collapsible_if)
+                                // The !is_empty() check is technically redundant if BATCH_SIZE > 0, but kept for clarity.
+                                if node_batch.len() >= BATCH_SIZE && !node_batch.is_empty() {
+                                    log::trace!("Sending batch of {} nodes (size limit)", node_batch.len());
+                                    if ui_sender.send(ScanMessage::AddNodes(std::mem::take(&mut node_batch))).is_err() {
+                                        log::warn!("UI sender channel closed while sending full batch.");
+                                        break; // Exit loop if UI channel is closed
+                                    }
+                                    last_batch_send_time = Instant::now(); // Reset timer after sending
+                                }
+                            }
+                            Err(error_msg) => {
+                                // Send errors immediately
+                                log::warn!("Received error from walker: {}", error_msg);
+                                if ui_sender.send(ScanMessage::Error(error_msg)).is_err() {
+                                    log::warn!("UI sender channel closed while sending error.");
+                                    break; // Exit loop
+                                }
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        // Channel closed, meaning the walker thread finished.
+                        log::info!("Local node channel closed; walker finished.");
+                        // walk_finished = true; // Removed unused assignment
+                        break; // Exit the select! loop to send final batch and finish.
+                    }
+                }
+            },
+            // Send batch if timeout reached
+            default(BATCH_TIMEOUT) => {
+                if !node_batch.is_empty() && last_batch_send_time.elapsed() >= BATCH_TIMEOUT {
+                    log::trace!("Sending batch of {} nodes (timeout)", node_batch.len());
+                    if ui_sender.send(ScanMessage::AddNodes(std::mem::take(&mut node_batch))).is_err() {
+                        log::warn!("UI sender channel closed while sending timed-out batch.");
+                        break; // Exit loop
+                    }
+                    last_batch_send_time = Instant::now(); // Reset timer
+                }
+            }
+        }
+        // If the walk finished in the recv arm, break the outer loop too
+        // Removed check for unused walk_finished variable
+        // The loop now breaks directly when the recv returns Err
+    }
+
+    // Send any remaining nodes after the loop finishes
+    if !node_batch.is_empty() {
+        log::info!("Sending final batch of {} nodes.", node_batch.len());
+        let _ = ui_sender.send(ScanMessage::AddNodes(node_batch)); // Ignore error if UI closed
+    }
+
+    // Wait for the walker thread to complete its cleanup (optional but good practice)
+    if let Err(e) = walker_thread.join() {
+        log::error!("Walker thread panicked: {:?}", e);
+        // Send an error message to UI if walker panicked
+        let _ = ui_sender.send(ScanMessage::Error("Walker thread panicked.".to_string()));
+    } else {
+        log::info!("Walker thread joined successfully.");
+    }
+
+    // Log final status based on cancellation signal
     if cancel_signal.load(Ordering::Relaxed) {
         log::info!("Scan worker finished processing due to cancellation signal.");
     } else {
-        log::info!("Scan worker finished processing path: {}", root.display());
+        log::info!("Scan worker finished processing path normally.");
     }
 
-    // Always send the Finished message, regardless of cancellation status.
-    // The UI thread uses this to know the task is complete.
-    // Use `let _ = ...` to ignore potential send error if channel is already closed.
-    let _ = sender.send(ScanMessage::Finished);
-    log::info!("Scan worker thread exiting for path: {}", root.display());
+    // Always send the Finished message
+    let _ = ui_sender.send(ScanMessage::Finished);
+    log::info!("Scan worker thread exiting.");
 }

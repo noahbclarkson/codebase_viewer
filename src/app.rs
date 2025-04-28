@@ -17,7 +17,7 @@ use rfd::MessageDialogResult;
 use std::{
     collections::HashMap,
     fs as std_fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -84,6 +84,9 @@ pub struct CodebaseApp {
     /// Temporary storage for child nodes whose parent hasn't been received yet during scan.
     /// Key: Parent's absolute path. Value: List of (ChildId, ChildPath).
     orphaned_children: HashMap<PathBuf, Vec<(FileId, PathBuf)>>,
+
+    /// Map from absolute path to FileId for fast parent lookups during scan.
+    path_to_id_map: HashMap<PathBuf, FileId>,
 
     // --- Background Task State ---
     /// Receiver for messages from the background scanner thread.
@@ -212,6 +215,7 @@ impl CodebaseApp {
             theme_set,
             deferred_actions: Vec::new(),
             orphaned_children: HashMap::new(),
+            path_to_id_map: HashMap::new(), // Initialize the new map
             prefs_draft: None,
             report_options_draft: None,
         }
@@ -275,6 +279,7 @@ impl CodebaseApp {
         self.scan_stats = Some(ScanStats::default());
         self.preview_cache = None; // Clear preview
         self.orphaned_children.clear(); // Clear any previous orphans
+        self.path_to_id_map.clear(); // Clear the path map for the new scan
         self.status_message = format!(
             "Scanning {}...",
             path.file_name().map_or_else(
@@ -803,6 +808,97 @@ impl CodebaseApp {
         (total, selected)
     }
 
+    /// Helper function to process the addition of a single FileNode.
+    /// Contains the logic previously inside the ScanMessage::AddNode match arm.
+    fn add_single_node(&mut self, node: FileNode) {
+        let node_path = node.path().to_path_buf();
+        let node_id = self.nodes.len(); // ID will be the next index
+
+        // Determine parent path
+        let parent_path_opt = node_path.parent().map(|p| p.to_path_buf());
+
+        // Add the node to the arena *first*
+        self.nodes.push(node); // node is moved here
+        // Populate the path map *after* pushing the node
+        self.path_to_id_map.insert(node_path.clone(), node_id);
+
+        // --- Root Node Handling ---
+        // Check if this is the root node we started scanning
+        if self.root_id.is_none() && Some(&node_path) == self.root_path.as_ref() {
+            self.root_id = Some(node_id);
+            if let Some(root_node) = self.nodes.get_mut(node_id) {
+                root_node.is_expanded = true; // Expand root by default
+            }
+            log::debug!(
+                "Root node added: ID {}, Path: {}",
+                node_id,
+                node_path.display()
+            );
+        }
+
+        // --- Parent Linking & Orphan Handling ---
+        let mut parent_found = false;
+        if let Some(parent_path) = parent_path_opt.as_ref() {
+            // Try to find the parent node using the HashMap
+            if let Some(&parent_id) = self.path_to_id_map.get(parent_path) {
+                // If parent found, add the current node as its child
+                if let Some(parent_node) = self.nodes.get_mut(parent_id) {
+                    parent_node.children.push(node_id);
+                    parent_found = true;
+                    // log::trace!("Linked node {} ({}) to parent {}", node_id, node_path.display(), parent_id);
+
+                    // Check if this newly added node was a missing parent for any orphans
+                    if let Some(orphans) = self.orphaned_children.remove(&node_path) {
+                        log::debug!(
+                            "Node {} ({}) resolved {} orphans.",
+                            node_id,
+                            node_path.display(),
+                            orphans.len()
+                        );
+                        // Add the resolved orphans as children of the new node
+                        if let Some(new_parent_node) = self.nodes.get_mut(node_id) {
+                            for (orphan_id, _) in orphans {
+                                new_parent_node.children.push(orphan_id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Orphan Handling ---
+        // If parent wasn't found *and* this isn't the root node, store it as an orphan
+        if !parent_found && self.root_id != Some(node_id) {
+            if let Some(parent_path) = parent_path_opt {
+                log::trace!(
+                    "Orphaned node {} (parent {} not found yet). Storing.",
+                    node_path.display(),
+                    parent_path.display()
+                );
+                self.orphaned_children
+                    .entry(parent_path) // Group orphans by their missing parent's path
+                    .or_default()
+                    .push((node_id, node_path.clone())); // Store child ID and path, clone path
+            } else if self.root_id.is_none() {
+                // This case should ideally not happen if root handling is correct
+                log::error!(
+                    "Node {} has no parent but is not root, and root not yet found.",
+                    node_path.display()
+                );
+            }
+        }
+
+        // Update scan statistics using the info from the *added* node
+        if let Some(stats) = self.scan_stats.as_mut() {
+            if let Some(root_p) = &self.root_path {
+                // Access the node we just pushed
+                if let Some(added_node_info) = self.nodes.get(node_id).map(|n| &n.info) {
+                    stats.add_file(added_node_info, root_p);
+                }
+            }
+        }
+    }
+
     // --- Message Handling ---
 
     /// Processes messages received from the background scanner thread.
@@ -812,89 +908,12 @@ impl CodebaseApp {
             while let Ok(msg) = receiver.try_recv() {
                 match msg {
                     ScanMessage::AddNode(node) => {
-                        let node_path = node.path().to_path_buf();
-                        let node_id = self.nodes.len(); // ID will be the next index
-
-                        // Determine parent path
-                        let parent_path_opt = node_path.parent().map(|p| p.to_path_buf());
-
-                        // Add the node to the arena *first*
-                        self.nodes.push(node); // node is moved here
-
-                        // --- Root Node Handling ---
-                        // Check if this is the root node we started scanning
-                        if self.root_id.is_none() && Some(&node_path) == self.root_path.as_ref() {
-                            self.root_id = Some(node_id);
-                            if let Some(root_node) = self.nodes.get_mut(node_id) {
-                                root_node.is_expanded = true; // Expand root by default
-                            }
-                            log::debug!(
-                                "Root node added: ID {}, Path: {}",
-                                node_id,
-                                node_path.display()
-                            );
-                        }
-
-                        // --- Parent Linking & Orphan Handling ---
-                        let mut parent_found = false;
-                        if let Some(parent_path) = parent_path_opt.as_ref() {
-                            // Try to find the parent node by its path
-                            if let Some(parent_id) = self.find_node_by_path(parent_path) {
-                                // If parent found, add the current node as its child
-                                if let Some(parent_node) = self.nodes.get_mut(parent_id) {
-                                    parent_node.children.push(node_id);
-                                    parent_found = true;
-                                    // log::trace!("Linked node {} ({}) to parent {}", node_id, node_path.display(), parent_id);
-
-                                    // Check if this newly added node was a missing parent for any orphans
-                                    if let Some(orphans) = self.orphaned_children.remove(&node_path)
-                                    {
-                                        log::debug!(
-                                            "Node {} ({}) resolved {} orphans.",
-                                            node_id,
-                                            node_path.display(),
-                                            orphans.len()
-                                        );
-                                        // Add the resolved orphans as children of the new node
-                                        if let Some(new_parent_node) = self.nodes.get_mut(node_id) {
-                                            for (orphan_id, _) in orphans {
-                                                new_parent_node.children.push(orphan_id);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // --- Orphan Handling ---
-                        // If parent wasn't found *and* this isn't the root node, store it as an orphan
-                        if !parent_found && self.root_id != Some(node_id) {
-                            if let Some(parent_path) = parent_path_opt {
-                                log::trace!(
-                                    "Orphaned node {} (parent {} not found yet). Storing.",
-                                    node_path.display(),
-                                    parent_path.display()
-                                );
-                                self.orphaned_children
-                                    .entry(parent_path) // Group orphans by their missing parent's path
-                                    .or_default()
-                                    .push((node_id, node_path)); // Store child ID and path
-                            } else if self.root_id.is_none() {
-                                // This case should ideally not happen if root handling is correct
-                                log::error!("Node {} has no parent but is not root, and root not yet found.", node_path.display());
-                            }
-                        }
-
-                        // Update scan statistics using the info from the *added* node
-                        if let Some(stats) = self.scan_stats.as_mut() {
-                            if let Some(root_p) = &self.root_path {
-                                // Access the node we just pushed
-                                if let Some(added_node_info) =
-                                    self.nodes.get(node_id).map(|n| &n.info)
-                                {
-                                    stats.add_file(added_node_info, root_p);
-                                }
-                            }
+                        self.add_single_node(node);
+                    }
+                    ScanMessage::AddNodes(nodes) => {
+                        // log::trace!("Processing batch of {} nodes", nodes.len()); // Optional: Log batch processing
+                        for node in nodes {
+                            self.add_single_node(node);
                         }
                     }
                     ScanMessage::Error(err_msg) => {
@@ -1057,10 +1076,7 @@ impl CodebaseApp {
         }
     }
 
-    /// Finds the `FileId` of a node by its absolute path.
-    fn find_node_by_path(&self, path: &Path) -> Option<FileId> {
-        self.nodes.iter().position(|n| n.path() == path)
-    }
+    // Removed find_node_by_path as it's replaced by path_to_id_map lookup
 
     /// Recursively sorts the children of each node (directories first, then alphabetically).
     fn sort_nodes_recursively(&mut self, node_id_opt: Option<FileId>) {

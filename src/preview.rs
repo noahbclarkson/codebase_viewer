@@ -5,6 +5,7 @@ use egui::{text::LayoutJob, Color32, Context, FontId, Sense, TextFormat, Texture
 use image::GenericImageView;
 use log;
 use once_cell::sync::Lazy;
+use resvg::usvg; // Remove unused TreeParsing, TreeTextToPath
 use std::{fs, path::Path, sync::Arc};
 use syntect::{
     easy::HighlightLines,
@@ -196,11 +197,12 @@ pub fn generate_preview(
                 Err(e) => (PreviewContent::Error(e), None),
             }
         }
+        // SVG Type
+        "svg" => match generate_svg_texture(path, config.max_file_size_preview, ctx) {
+            Ok(texture_handle) => (PreviewContent::Image(Arc::new(texture_handle)), None),
+            Err(e) => (PreviewContent::Error(e), None),
+        },
         // Unsupported Types (Explicitly listed)
-        "svg" => (
-            PreviewContent::Unsupported("SVG preview not yet implemented".to_string()),
-            None,
-        ),
         "pdf" => (
             PreviewContent::Unsupported("PDF preview not yet implemented".to_string()),
             None,
@@ -455,6 +457,75 @@ fn generate_image_texture(
     );
     Ok(texture_handle)
 }
+
+/// Loads an SVG file, renders it using resvg, and converts it to an egui `TextureHandle`.
+fn generate_svg_texture(
+    path: &Path,
+    max_size: i64,
+    ctx: &Context, // Need egui context to load texture
+) -> Result<TextureHandle, String> {
+    log::debug!("Generating SVG texture for: {}", path.display());
+    let bytes = read_file_bytes(path, max_size)?;
+    if bytes.is_empty() {
+        return Err("SVG file is empty or could not be read".to_string());
+    }
+
+    // Load the font database.
+    let mut fontdb = usvg::fontdb::Database::new();
+    fontdb.load_system_fonts(); // Attempt to load system fonts
+
+    // Set up parsing options with the font database
+    let opts = usvg::Options {
+        fontdb: Arc::new(fontdb), // Pass the font database via options
+        ..Default::default()
+    };
+
+    // Parse SVG using usvg with options
+    let tree = usvg::Tree::from_data(&bytes, &opts)
+        .map_err(|e| format!("Failed to parse SVG '{}': {}", path.display(), e))?;
+
+    // Font loading is handled during parsing via options, no separate call needed.
+
+    let tree_size = tree.size();
+    let width = tree_size.width().ceil() as u32;
+    let height = tree_size.height().ceil() as u32;
+
+    if width == 0 || height == 0 {
+        return Err("SVG has zero width or height".to_string());
+    }
+
+    // Create a pixel buffer (pixmap) to render onto
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height)
+        .ok_or_else(|| format!("Failed to create pixel map for SVG ({}x{})", width, height))?;
+
+    // Render the SVG tree onto the pixmap using correct arguments
+    resvg::render(
+        &tree,
+        usvg::Transform::identity(), // Use usvg::Transform
+        &mut pixmap.as_mut(), // Pass mutable reference to PixmapMut
+    );
+    // render function returns () on success, errors are typically handled during parsing/pixmap creation
+
+    // Convert the pixmap data (RGBA) to egui::ColorImage
+    let pixels = pixmap.take(); // Take ownership of the pixel data Vec<u8>
+    let size = [width as usize, height as usize];
+    let color_image = egui::ColorImage::from_rgba_unmultiplied(size, &pixels);
+
+    // Create TextureHandle using egui context's texture manager
+    let texture_options = egui::TextureOptions::LINEAR; // Use linear filtering
+    let texture_handle = ctx.load_texture(
+        path.display().to_string(), // Debug name for the texture
+        color_image,
+        texture_options,
+    );
+
+    log::debug!(
+        "SVG texture generated successfully for: {}",
+        path.display()
+    );
+    Ok(texture_handle)
+}
+
 
 // --- Helper Functions ---
 

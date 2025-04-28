@@ -41,11 +41,17 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+
     - name: Check formatting
       run: cargo fmt --all -- --check
 
     - name: Run Clippy (Fail on warnings)
       run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Run cargo-audit
+      run: cargo audit
 
     - name: Run tests
       run: cargo test --all-features --verbose # Add --verbose for more output
