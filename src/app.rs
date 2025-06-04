@@ -11,6 +11,7 @@ use crate::{
     task::{ScanMessage, TaskMessage}, // Use items from task module
     ui,                               // Use the ui module's drawing functions
 };
+use arboard::Clipboard;
 use crossbeam_channel::{Receiver, Sender};
 use egui::{style::Visuals, CentralPanel, Context, Key, Modifiers, SidePanel};
 use rfd::MessageDialogResult;
@@ -146,6 +147,8 @@ pub(crate) enum AppAction {
     LoadSelection,
     /// Generate a report with the specified options.
     GenerateReport(ReportOptions),
+    /// Generate a report and copy the output to the clipboard.
+    CopyReport(ReportOptions),
     /// Start scanning a new directory path.
     StartScan(PathBuf),
     /// Request cancellation of the currently running scan.
@@ -245,6 +248,7 @@ impl CodebaseApp {
                 AppAction::SaveSelection => self.perform_save_selection(),
                 AppAction::LoadSelection => self.perform_load_selection(),
                 AppAction::GenerateReport(opts) => self.perform_generate_report(opts),
+                AppAction::CopyReport(opts) => self.perform_copy_report(opts),
                 AppAction::StartScan(path) => self.perform_start_scan(path),
                 AppAction::CancelScan => self.perform_cancel_scan(),
                 AppAction::FocusSearchBox => self.perform_focus_search_box(),
@@ -644,6 +648,56 @@ impl CodebaseApp {
             self.background_task = Some(BackgroundTask::Report(handle));
         } else {
             self.status_message = "Report generation cancelled.".to_string();
+        }
+    }
+
+    /// Generates a report and copies the content to the clipboard.
+    fn perform_copy_report(&mut self, options: ReportOptions) {
+        if self.is_scanning || self.is_generating_report {
+            log::warn!("Cannot copy report: Another background task is running.");
+            self.status_message = "Busy with another task (scan/report).".to_string();
+            return;
+        }
+        if self.root_path.is_none() || self.root_id.is_none() {
+            self.status_message = "No directory open to generate report from.".to_string();
+            log::warn!("Copy report attempted with no directory open.");
+            return;
+        }
+
+        match report::generate_report(self, &options) {
+            Ok(content) => match Clipboard::new() {
+                Ok(mut clipboard) => {
+                    if let Err(e) = clipboard.set_text(content) {
+                        log::error!("Failed to copy report to clipboard: {}", e);
+                        self.status_message = format!("Error copying report: {}", e);
+                        rfd::MessageDialog::new()
+                            .set_level(rfd::MessageLevel::Error)
+                            .set_title("Copy Report Failed")
+                            .set_description(format!("Could not copy report:\n{}", e))
+                            .show();
+                    } else {
+                        self.status_message = "Report copied to clipboard.".to_string();
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to access clipboard: {}", e);
+                    self.status_message = format!("Clipboard error: {}", e);
+                    rfd::MessageDialog::new()
+                        .set_level(rfd::MessageLevel::Error)
+                        .set_title("Clipboard Error")
+                        .set_description(format!("Could not access clipboard:\n{}", e))
+                        .show();
+                }
+            },
+            Err(e) => {
+                log::error!("Failed to generate report for clipboard: {}", e);
+                self.status_message = format!("Error generating report: {}", e);
+                rfd::MessageDialog::new()
+                    .set_level(rfd::MessageLevel::Error)
+                    .set_title("Report Generation Failed")
+                    .set_description(format!("Could not generate report:\n{}", e))
+                    .show();
+            }
         }
     }
 

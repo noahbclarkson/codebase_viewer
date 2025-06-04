@@ -202,6 +202,7 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
     }
 
     let mut generate_clicked = false;
+    let mut copy_clicked = false;
     let mut cancel_clicked = false;
     let mut is_open = true;
 
@@ -266,6 +267,16 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
                         {
                             generate_clicked = true;
                         }
+                        if ui
+                            .add_enabled(
+                                !app.is_scanning && !app.is_generating_report,
+                                Button::new("Copy to Clipboard"),
+                            )
+                            .on_hover_text("Copy the report to the clipboard")
+                            .clicked()
+                        {
+                            copy_clicked = true;
+                        }
                         if app.is_scanning || app.is_generating_report {
                             ui.label(RichText::new("Busy...").color(Color32::RED).small());
                         }
@@ -288,6 +299,15 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
             app.last_report_options = opts.clone(); // Update last used options
             app.queue_action(AppAction::GenerateReport(opts)); // Queue the generation action
             app.show_report_options_window = false; // Close the dialog
+        }
+    }
+
+    // Handle Copy button click
+    if copy_clicked {
+        if let Some(opts) = app.report_options_draft.take() {
+            app.last_report_options = opts.clone();
+            app.queue_action(AppAction::CopyReport(opts));
+            app.show_report_options_window = false;
         }
     }
 }
