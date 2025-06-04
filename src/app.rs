@@ -11,6 +11,7 @@ use crate::{
     task::{ScanMessage, TaskMessage}, // Use items from task module
     ui,                               // Use the ui module's drawing functions
 };
+use arboard::Clipboard;
 use crossbeam_channel::{Receiver, Sender};
 use egui::{style::Visuals, CentralPanel, Context, Key, Modifiers, SidePanel};
 use rfd::MessageDialogResult;
@@ -26,7 +27,6 @@ use std::{
 };
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
-use arboard::Clipboard;
 
 /// Represents the types of background tasks the application can run.
 #[allow(dead_code)]
