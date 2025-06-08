@@ -9,7 +9,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and 
 
 _Nothing yet._
 
-[Unreleased]: https://github.com/noahbclarkson/codebase_viewer/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/noahbclarkson/codebase_viewer/compare/v0.1.2...HEAD
+
+---
+
+## [0.1.2] - 2025-06-04
+
+### Added
+- Copy generated reports directly to the clipboard via a new button.
+- `arboard` dependency for cross-platform clipboard access.
 
 ---
 
@@ -36,6 +44,7 @@ _Nothing yet._
 - Explicit revision pin for **cross** install.
 
 [0.1.1]: https://github.com/noahbclarkson/codebase_viewer/releases/tag/v0.1.1
+[0.1.2]: https://github.com/noahbclarkson/codebase_viewer/releases/tag/v0.1.2
 
 ---
 
