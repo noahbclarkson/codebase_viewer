@@ -9,7 +9,10 @@ pub fn format_text(data: &ReportData) -> String {
     let sub_sep = "-".repeat(70);
 
     txt.push_str(&format!("{}\n", sep));
-    txt.push_str(&format!("{} - CODEBASE OVERVIEW\n", data.project_name.to_uppercase()));
+    txt.push_str(&format!(
+        "{} - CODEBASE OVERVIEW\n",
+        data.project_name.to_uppercase()
+    ));
     txt.push_str(&format!("{}\n", sep));
     txt.push_str(&format!("Generated on: {}\n", data.timestamp));
     txt.push_str(&format!("Root Path:    {}\n", data.root_path));
@@ -55,7 +58,10 @@ pub fn format_text(data: &ReportData) -> String {
         if !stats.largest_files.is_empty() {
             txt.push_str("\nLargest Files:\n");
             for file_info in &stats.largest_files {
-                txt.push_str(&format!("  {} ({})\n", file_info.path, file_info.human_size));
+                txt.push_str(&format!(
+                    "  {} ({})\n",
+                    file_info.path, file_info.human_size
+                ));
             }
         }
 
@@ -90,7 +96,10 @@ pub fn format_text(data: &ReportData) -> String {
     if !data.file_details.is_empty() {
         for detail in &data.file_details {
             txt.push_str(&format!("\n--- File: {} ---\n", detail.relative_path));
-            txt.push_str(&format!("(Size: {} | Modified: {})\n", detail.size, detail.modified));
+            txt.push_str(&format!(
+                "(Size: {} | Modified: {})\n",
+                detail.size, detail.modified
+            ));
             txt.push_str(&format!("{}\n", sub_sep));
             match &detail.content {
                 Ok(content) => txt.push_str(content.trim_end()),
@@ -119,6 +128,10 @@ fn estimate_text_capacity(data: &ReportData) -> usize {
     let tree_size = data.full_tree_structure.len() + data.selected_tree_structure.len();
     let stats_size = if data.stats.is_some() { 512 } else { 0 };
     let file_meta_size = data.file_details.len() * 150;
-    let file_content_size: usize = data.file_details.iter().map(|d| d.content.as_ref().map_or(50, |s| s.len())).sum();
+    let file_content_size: usize = data
+        .file_details
+        .iter()
+        .map(|d| d.content.as_ref().map_or(50, |s| s.len()))
+        .sum();
     base_size + tree_size + stats_size + file_meta_size + file_content_size
 }

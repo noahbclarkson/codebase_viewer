@@ -18,7 +18,10 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
             }
 
             let word_wrap_button = ui
-                .toggle_value(&mut app.preview_word_wrap, RichText::new(TEXT_ALIGN_JUSTIFY))
+                .toggle_value(
+                    &mut app.preview_word_wrap,
+                    RichText::new(TEXT_ALIGN_JUSTIFY),
+                )
                 .on_hover_text("Toggle Word Wrap");
 
             if word_wrap_button.clicked() {
@@ -40,18 +43,31 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
                 if let Some(node) = app.nodes.get(selected_id) {
                     // Display File Path and Basic Info Header
                     ui.horizontal_wrapped(|ui| {
-                        ui.label(RichText::new(node.path().display().to_string()).weak().small());
+                        ui.label(
+                            RichText::new(node.path().display().to_string())
+                                .weak()
+                                .small(),
+                        );
                     });
 
-                    let modified_str = node.info.modified.as_ref().map(|st| {
-                        let datetime: chrono::DateTime<chrono::Local> = (*st).into();
-                        datetime.format("%Y-%m-%d %H:%M:%S").to_string()
-                    }).unwrap_or_else(|| "N/A".to_string());
+                    let modified_str = node
+                        .info
+                        .modified
+                        .as_ref()
+                        .map(|st| {
+                            let datetime: chrono::DateTime<chrono::Local> = (*st).into();
+                            datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+                        })
+                        .unwrap_or_else(|| "N/A".to_string());
 
-                    let mut meta_text = format!("Size: {} | Modified: {}", node.info.human_size, modified_str);
+                    let mut meta_text = format!(
+                        "Size: {} | Modified: {}",
+                        node.info.human_size, modified_str
+                    );
                     // MODIFIED: Access fields directly from `tokei::Language`
                     if let Some(loc_stats) = &node.info.loc_stats {
-                        meta_text += &format!(" | Lines: {} (code: {}, comments: {}, blank: {})",
+                        meta_text += &format!(
+                            " | Lines: {} (code: {}, comments: {}, blank: {})",
                             loc_stats.lines(),
                             loc_stats.code,
                             loc_stats.comments,
@@ -69,31 +85,37 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
 
                     // Display Preview Content based on cache state
                     match &app.preview_cache {
-                        Some(cache_mutex) => {
-                            match cache_mutex.try_lock() {
-                                Some(cache) => {
-                                    if cache.node_id == selected_id {
-                                        preview::render_preview_content(ui, &cache.content, app.preview_word_wrap);
-                                    } else {
-                                        ui.horizontal(|ui| {
-                                            ui.spinner();
-                                            ui.label("Loading preview...");
-                                        });
-                                    }
-                                }
-                                None => {
+                        Some(cache_mutex) => match cache_mutex.try_lock() {
+                            Some(cache) => {
+                                if cache.node_id == selected_id {
+                                    preview::render_preview_content(
+                                        ui,
+                                        &cache.content,
+                                        app.preview_word_wrap,
+                                    );
+                                } else {
                                     ui.horizontal(|ui| {
                                         ui.spinner();
-                                        ui.label("Generating preview...");
+                                        ui.label("Loading preview...");
                                     });
                                 }
                             }
-                        }
+                            None => {
+                                ui.horizontal(|ui| {
+                                    ui.spinner();
+                                    ui.label("Generating preview...");
+                                });
+                            }
+                        },
                         None => {
                             if node.is_dir() {
                                 ui.vertical_centered(|ui| {
                                     ui.add_space(ui.available_height() * 0.3);
-                                    ui.label(RichText::new(FOLDER_OPEN).size(48.0).color(ui.visuals().weak_text_color()));
+                                    ui.label(
+                                        RichText::new(FOLDER_OPEN)
+                                            .size(48.0)
+                                            .color(ui.visuals().weak_text_color()),
+                                    );
                                     ui.label(RichText::new("Directory Selected").strong());
                                 });
                             } else {

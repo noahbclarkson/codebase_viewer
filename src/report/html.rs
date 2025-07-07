@@ -10,7 +10,10 @@ pub fn format_html(data: &ReportData) -> String {
     html.push_str("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n");
     html.push_str("  <meta charset=\"UTF-8\">\n");
     html.push_str("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
-    html.push_str(&format!("  <title>Codebase Report: {}</title>\n", html_escape(&data.project_name)));
+    html.push_str(&format!(
+        "  <title>Codebase Report: {}</title>\n",
+        html_escape(&data.project_name)
+    ));
     html.push_str("  <style>\n");
     html.push_str("    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; line-height: 1.5; margin: 20px; color: #333; }\n");
     html.push_str("    h1, h2, h3 { border-bottom: 1px solid #eee; padding-bottom: 0.3em; margin-top: 1.8em; margin-bottom: 0.8em; color: #111; }\n");
@@ -35,9 +38,18 @@ pub fn format_html(data: &ReportData) -> String {
 
     // --- Report Header ---
     html.push_str("<header class=\"report-header\">\n");
-    html.push_str(&format!("  <h1>{} - Codebase Overview</h1>\n", html_escape(&data.project_name)));
-    html.push_str(&format!("  <p>Generated on: {}</p>\n", html_escape(&data.timestamp)));
-    html.push_str(&format!("  <p>Root Path: <code>{}</code></p>\n", html_escape(&data.root_path)));
+    html.push_str(&format!(
+        "  <h1>{} - Codebase Overview</h1>\n",
+        html_escape(&data.project_name)
+    ));
+    html.push_str(&format!(
+        "  <p>Generated on: {}</p>\n",
+        html_escape(&data.timestamp)
+    ));
+    html.push_str(&format!(
+        "  <p>Root Path: <code>{}</code></p>\n",
+        html_escape(&data.root_path)
+    ));
     html.push_str("</header>\n");
     html.push_str("<hr>\n");
 
@@ -45,9 +57,18 @@ pub fn format_html(data: &ReportData) -> String {
     if let Some(stats) = &data.stats {
         html.push_str("<section id=\"statistics\">\n");
         html.push_str("  <h2>Project Statistics (Full Scan)</h2>\n  <ul>\n");
-        html.push_str(&format!("    <li><strong>Total Files:</strong> {}</li>\n", stats.total_files));
-        html.push_str(&format!("    <li><strong>Total Dirs:</strong> {}</li>\n", stats.total_dirs));
-        html.push_str(&format!("    <li><strong>Total Size:</strong> {}</li>\n", html_escape(&stats.total_size_human())));
+        html.push_str(&format!(
+            "    <li><strong>Total Files:</strong> {}</li>\n",
+            stats.total_files
+        ));
+        html.push_str(&format!(
+            "    <li><strong>Total Dirs:</strong> {}</li>\n",
+            stats.total_dirs
+        ));
+        html.push_str(&format!(
+            "    <li><strong>Total Size:</strong> {}</li>\n",
+            html_escape(&stats.total_size_human())
+        ));
         html.push_str("  </ul>\n");
 
         // MODIFIED: Language Statistics Table
@@ -76,7 +97,11 @@ pub fn format_html(data: &ReportData) -> String {
             let mut sorted_types: Vec<_> = stats.file_types.iter().collect();
             sorted_types.sort_by(|a, b| b.1.cmp(a.1));
             for (ext, count) in sorted_types.iter().take(20) {
-                html.push_str(&format!("    <li><code>{}</code>: {}</li>\n", html_escape(ext), count));
+                html.push_str(&format!(
+                    "    <li><code>{}</code>: {}</li>\n",
+                    html_escape(ext),
+                    count
+                ));
             }
             if sorted_types.len() > 20 {
                 html.push_str("    <li>... and more</li>\n");
@@ -87,7 +112,11 @@ pub fn format_html(data: &ReportData) -> String {
         if !stats.largest_files.is_empty() {
             html.push_str("  <h3>Largest Files:</h3>\n  <ul>\n");
             for file_info in &stats.largest_files {
-                html.push_str(&format!("    <li><code>{}</code> ({})</li>\n", html_escape(&file_info.path), html_escape(&file_info.human_size)));
+                html.push_str(&format!(
+                    "    <li><code>{}</code> ({})</li>\n",
+                    html_escape(&file_info.path),
+                    html_escape(&file_info.human_size)
+                ));
             }
             html.push_str("  </ul>\n");
         }
@@ -131,13 +160,23 @@ pub fn format_html(data: &ReportData) -> String {
     if !data.file_details.is_empty() {
         for detail in &data.file_details {
             html.push_str("  <div class=\"file-header\">\n");
-            html.push_str(&format!("    <h3><code>{}</code></h3>\n", html_escape(&detail.relative_path)));
-            html.push_str(&format!("    <div class=\"file-meta\">Size: {} | Modified: {}</div>\n", html_escape(&detail.size), html_escape(&detail.modified)));
+            html.push_str(&format!(
+                "    <h3><code>{}</code></h3>\n",
+                html_escape(&detail.relative_path)
+            ));
+            html.push_str(&format!(
+                "    <div class=\"file-meta\">Size: {} | Modified: {}</div>\n",
+                html_escape(&detail.size),
+                html_escape(&detail.modified)
+            ));
             html.push_str("  </div>\n");
             html.push_str("  <pre><code>");
             match &detail.content {
                 Ok(content) => html.push_str(&html_escape(content)),
-                Err(reason) => html.push_str(&format!("<span class=\"error-text\">{}</span>", html_escape(reason))),
+                Err(reason) => html.push_str(&format!(
+                    "<span class=\"error-text\">{}</span>",
+                    html_escape(reason)
+                )),
             }
             html.push_str("</code></pre>\n");
         }
@@ -156,7 +195,12 @@ pub fn format_html(data: &ReportData) -> String {
 }
 
 fn html_escape(input: &str) -> String {
-    input.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;")
+    input
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }
 
 fn estimate_html_capacity(data: &ReportData) -> usize {
@@ -164,6 +208,10 @@ fn estimate_html_capacity(data: &ReportData) -> usize {
     let tree_size = data.full_tree_structure.len() + data.selected_tree_structure.len();
     let stats_size = if data.stats.is_some() { 1024 } else { 0 };
     let file_meta_size = data.file_details.len() * 200;
-    let file_content_size: usize = data.file_details.iter().map(|d| d.content.as_ref().map_or(50, |s| s.len())).sum();
+    let file_content_size: usize = data
+        .file_details
+        .iter()
+        .map(|d| d.content.as_ref().map_or(50, |s| s.len()))
+        .sum();
     base_size + tree_size + stats_size + file_meta_size + file_content_size
 }

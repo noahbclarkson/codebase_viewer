@@ -33,7 +33,12 @@ impl FileInfo {
             Err(e) => {
                 log::warn!("ignore::DirEntry metadata failed for '{}': {}. Falling back to std::fs::metadata.", path.display(), e);
                 std::fs::metadata(&path).map_err(|fs_err| {
-                    anyhow::anyhow!("Failed to get metadata for '{}': ignore error ({}), fs error ({})", path.display(), e, fs_err)
+                    anyhow::anyhow!(
+                        "Failed to get metadata for '{}': ignore error ({}), fs error ({})",
+                        path.display(),
+                        e,
+                        fs_err
+                    )
                 })?
             }
         };
@@ -55,11 +60,18 @@ impl FileInfo {
             file_is_binary = match is_binary(&path, 8192) {
                 Ok(b) => b,
                 Err(e) => {
-                    log::warn!("Failed to perform binary check for '{}': {}. Assuming text.", path.display(), e);
+                    log::warn!(
+                        "Failed to perform binary check for '{}': {}. Assuming text.",
+                        path.display(),
+                        e
+                    );
                     false
                 }
             };
-            extension = path.extension().and_then(|s| s.to_str()).map(|s| s.to_lowercase());
+            extension = path
+                .extension()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_lowercase());
 
             if !file_is_binary {
                 loc_stats = get_loc_stats(&path);
@@ -89,14 +101,26 @@ pub fn is_binary(path: &Path, sample_size: usize) -> anyhow::Result<bool> {
     let mut file = match std::fs::File::open(path) {
         Ok(f) => f,
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(false),
-        Err(e) => return Err(anyhow::anyhow!("Failed to open file '{}' for binary check: {}", path.display(), e)),
+        Err(e) => {
+            return Err(anyhow::anyhow!(
+                "Failed to open file '{}' for binary check: {}",
+                path.display(),
+                e
+            ))
+        }
     };
     let buffer_size = sample_size.min(8192);
     let mut buffer = vec![0; buffer_size];
     let bytes_read = match file.read(&mut buffer) {
         Ok(n) => n,
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(false),
-        Err(e) => return Err(anyhow::anyhow!("Failed to read file '{}' for binary check: {}", path.display(), e)),
+        Err(e) => {
+            return Err(anyhow::anyhow!(
+                "Failed to read file '{}' for binary check: {}",
+                path.display(),
+                e
+            ))
+        }
     };
     Ok(buffer[..bytes_read].contains(&0))
 }
@@ -114,6 +138,16 @@ fn get_loc_stats(path: &Path) -> Option<tokei::Language> {
 
 mod humansize_serde {
     use serde::{self, Deserialize, Deserializer, Serializer};
-    pub fn serialize<S>(size_str: &str, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer { serializer.serialize_str(size_str) }
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<String, D::Error> where D: Deserializer<'de> { String::deserialize(deserializer) }
+    pub fn serialize<S>(size_str: &str, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(size_str)
+    }
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<String, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer)
+    }
 }

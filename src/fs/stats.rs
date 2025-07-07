@@ -53,14 +53,15 @@ impl ScanStats {
         self.total_files += 1;
         self.total_size_bytes += info.size;
 
-        let extension_key = info.extension.as_deref().map_or_else(
-            || "(no extension)".to_string(),
-            |ext| format!(".{}", ext),
-        );
+        let extension_key = info
+            .extension
+            .as_deref()
+            .map_or_else(|| "(no extension)".to_string(), |ext| format!(".{}", ext));
         *self.file_types.entry(extension_key).or_insert(0) += 1;
 
         if let Some(loc_stats) = &info.loc_stats {
-            let language_type = tokei::LanguageType::from_path(&info.path, &tokei::Config::default());
+            let language_type =
+                tokei::LanguageType::from_path(&info.path, &tokei::Config::default());
             if let Some(lang_type) = language_type {
                 let entry = self.language_stats.entry(lang_type).or_default();
 
@@ -73,10 +74,24 @@ impl ScanStats {
             }
         }
 
-        if info.size > 0 && (self.largest_files.len() < MAX_LARGEST_FILES || info.size > self.largest_files.last().map_or(0, |f| f.size)) {
-            let relative_path = info.path.strip_prefix(root_path).unwrap_or(&info.path).display().to_string();
-            let stat_info = FileStatInfo { path: relative_path, size: info.size, human_size: info.human_size.clone() };
-            let pos = self.largest_files.partition_point(|f| f.size >= stat_info.size);
+        if info.size > 0
+            && (self.largest_files.len() < MAX_LARGEST_FILES
+                || info.size > self.largest_files.last().map_or(0, |f| f.size))
+        {
+            let relative_path = info
+                .path
+                .strip_prefix(root_path)
+                .unwrap_or(&info.path)
+                .display()
+                .to_string();
+            let stat_info = FileStatInfo {
+                path: relative_path,
+                size: info.size,
+                human_size: info.human_size.clone(),
+            };
+            let pos = self
+                .largest_files
+                .partition_point(|f| f.size >= stat_info.size);
             if pos < MAX_LARGEST_FILES {
                 self.largest_files.insert(pos, stat_info);
                 self.largest_files.truncate(MAX_LARGEST_FILES);
@@ -93,7 +108,9 @@ impl ScanStats {
     pub fn add_error(&mut self, error: String) {
         match self.errors.len() {
             len if len < 100 => self.errors.push(error),
-            100 => self.errors.push("... more errors truncated ...".to_string()),
+            100 => self
+                .errors
+                .push("... more errors truncated ...".to_string()),
             _ => {}
         }
     }
@@ -107,7 +124,8 @@ impl ScanStats {
         if self.errors.len() > 101 {
             self.errors.truncate(101);
             if !self.errors.last().is_some_and(|s| s.contains("truncated")) {
-                self.errors.push("... more errors truncated ...".to_string());
+                self.errors
+                    .push("... more errors truncated ...".to_string());
             }
         }
 
@@ -120,8 +138,10 @@ impl ScanStats {
         }
 
         self.largest_files.extend(other.largest_files);
-        self.largest_files.sort_unstable_by(|a, b| b.size.cmp(&a.size));
-        self.largest_files.dedup_by(|a, b| a.path == b.path && a.size == b.size);
+        self.largest_files
+            .sort_unstable_by(|a, b| b.size.cmp(&a.size));
+        self.largest_files
+            .dedup_by(|a, b| a.path == b.path && a.size == b.size);
         self.largest_files.truncate(MAX_LARGEST_FILES);
     }
 

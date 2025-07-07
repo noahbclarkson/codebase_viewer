@@ -8,15 +8,41 @@ use std::path::Path;
 
 static LANG_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     HashMap::from([
-        ("rs", "rust"), ("toml", "toml"), ("md", "markdown"), ("html", "html"),
-        ("css", "css"), ("js", "javascript"), ("ts", "typescript"), ("py", "python"),
-        ("java", "java"), ("c", "c"), ("h", "c"), ("cpp", "cpp"), ("hpp", "cpp"),
-        ("cs", "csharp"), ("go", "go"), ("rb", "ruby"), ("php", "php"),
-        ("swift", "swift"), ("kt", "kotlin"), ("sql", "sql"), ("sh", "bash"),
-        ("json", "json"), ("yaml", "yaml"), ("yml", "yaml"), ("xml", "xml"),
-        ("lock", "toml"), ("gitignore", "gitignore"), ("dockerfile", "dockerfile"),
-        ("conf", "plaintext"), ("cfg", "plaintext"), ("ini", "ini"), ("log", "log"),
-        ("diff", "diff"), ("patch", "diff"), ("txt", "text"),
+        ("rs", "rust"),
+        ("toml", "toml"),
+        ("md", "markdown"),
+        ("html", "html"),
+        ("css", "css"),
+        ("js", "javascript"),
+        ("ts", "typescript"),
+        ("py", "python"),
+        ("java", "java"),
+        ("c", "c"),
+        ("h", "c"),
+        ("cpp", "cpp"),
+        ("hpp", "cpp"),
+        ("cs", "csharp"),
+        ("go", "go"),
+        ("rb", "ruby"),
+        ("php", "php"),
+        ("swift", "swift"),
+        ("kt", "kotlin"),
+        ("sql", "sql"),
+        ("sh", "bash"),
+        ("json", "json"),
+        ("yaml", "yaml"),
+        ("yml", "yaml"),
+        ("xml", "xml"),
+        ("lock", "toml"),
+        ("gitignore", "gitignore"),
+        ("dockerfile", "dockerfile"),
+        ("conf", "plaintext"),
+        ("cfg", "plaintext"),
+        ("ini", "ini"),
+        ("log", "log"),
+        ("diff", "diff"),
+        ("patch", "diff"),
+        ("txt", "text"),
     ])
 });
 
@@ -72,7 +98,10 @@ pub fn format_markdown(data: &ReportData) -> String {
         if !stats.largest_files.is_empty() {
             md.push_str("\n**Largest Files:**\n\n");
             for file_info in &stats.largest_files {
-                md.push_str(&format!("- `{}` ({})\n", file_info.path, file_info.human_size));
+                md.push_str(&format!(
+                    "- `{}` ({})\n",
+                    file_info.path, file_info.human_size
+                ));
             }
         }
 
@@ -112,8 +141,14 @@ pub fn format_markdown(data: &ReportData) -> String {
     if !data.file_details.is_empty() {
         for detail in &data.file_details {
             md.push_str(&format!("### `{}`\n\n", detail.relative_path));
-            md.push_str(&format!("*Size: {} | Modified: {}*\n\n", detail.size, detail.modified));
-            let ext = Path::new(&detail.relative_path).extension().and_then(|s| s.to_str()).unwrap_or("");
+            md.push_str(&format!(
+                "*Size: {} | Modified: {}*\n\n",
+                detail.size, detail.modified
+            ));
+            let ext = Path::new(&detail.relative_path)
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("");
             let lang_hint = LANG_MAP.get(ext).copied().unwrap_or("text");
             md.push_str(&format!("```{}\n", lang_hint));
             match &detail.content {
@@ -142,6 +177,10 @@ fn estimate_markdown_capacity(data: &ReportData) -> usize {
     let tree_size = data.full_tree_structure.len() + data.selected_tree_structure.len();
     let stats_size = if data.stats.is_some() { 512 } else { 0 };
     let file_meta_size = data.file_details.len() * 150;
-    let file_content_size: usize = data.file_details.iter().map(|d| d.content.as_ref().map_or(50, |s| s.len())).sum();
+    let file_content_size: usize = data
+        .file_details
+        .iter()
+        .map(|d| d.content.as_ref().map_or(50, |s| s.len()))
+        .sum();
     base_size + tree_size + stats_size + file_meta_size + file_content_size
 }
