@@ -10,7 +10,7 @@ use crate::{
     fs::scanner,
 };
 use arboard::Clipboard;
-use std::{fs as std_fs, path::PathBuf, sync::atomic::Ordering};
+use std::{fs as std_fs, path::PathBuf, sync::atomic::Ordering, thread};
 
 impl CodebaseApp {
     /// Processes all actions queued in `deferred_actions`.
@@ -245,36 +245,39 @@ impl CodebaseApp {
             let report_data_result = report::collect_report_data(self, &options);
             let task_sender = self.task_sender.clone().expect("Task sender should exist");
             let report_options = options.clone();
-            let handle = std::thread::spawn(move || {
-                match report_data_result {
-                    Ok(data) => {
-                        let _ = task_sender.send(TaskMessage::ReportProgress("Formatting report...".to_string()));
-                        match report::format_report_content(&data, &report_options) {
-                            Ok(report_content) => {
-                                let _ = task_sender.send(TaskMessage::ReportProgress(format!("Saving report to {}...", save_path.display())));
-                                match std_fs::write(&save_path, report_content) {
-                                    Ok(_) => { let _ = task_sender.send(TaskMessage::ReportFinished(Ok(save_path))); }
-                                    Err(e) => {
-                                        let err_msg = format!("Failed to write report file: {}", e);
-                                        log::error!("{}", err_msg);
-                                        let _ = task_sender.send(TaskMessage::ReportFinished(Err(err_msg)));
+            let handle = thread::Builder::new()
+                .name("report_generator".to_string())
+                .spawn(move || {
+                    match report_data_result {
+                        Ok(data) => {
+                            let _ = task_sender.send(TaskMessage::ReportProgress("Formatting report...".to_string()));
+                            match report::format_report_content(&data, &report_options) {
+                                Ok(report_content) => {
+                                    let _ = task_sender.send(TaskMessage::ReportProgress(format!("Saving report to {}...", save_path.display())));
+                                    match std_fs::write(&save_path, report_content) {
+                                        Ok(_) => { let _ = task_sender.send(TaskMessage::ReportFinished(Ok(save_path))); }
+                                        Err(e) => {
+                                            let err_msg = format!("Failed to write report file: {}", e);
+                                            log::error!("{}", err_msg);
+                                            let _ = task_sender.send(TaskMessage::ReportFinished(Err(err_msg)));
+                                        }
                                     }
                                 }
-                            }
-                            Err(e) => {
-                                let err_msg = format!("Failed to format report content: {}", e);
-                                log::error!("{}", err_msg);
-                                let _ = task_sender.send(TaskMessage::ReportFinished(Err(err_msg)));
+                                Err(e) => {
+                                    let err_msg = format!("Failed to format report content: {}", e);
+                                    log::error!("{}", err_msg);
+                                    let _ = task_sender.send(TaskMessage::ReportFinished(Err(err_msg)));
+                                }
                             }
                         }
+                        Err(e) => {
+                            let err_msg = format!("Failed to collect report data: {}", e);
+                            log::error!("{}", err_msg);
+                            let _ = task_sender.send(TaskMessage::ReportFinished(Err(err_msg)));
+                        }
                     }
-                    Err(e) => {
-                        let err_msg = format!("Failed to collect report data: {}", e);
-                        log::error!("{}", err_msg);
-                        let _ = task_sender.send(TaskMessage::ReportFinished(Err(err_msg)));
-                    }
-                }
-            });
+                })
+                .expect("Failed to spawn report generator thread");
             self.background_task = Some(super::state::BackgroundTask::Report(handle));
         } else {
             self.status_message = "Report generation cancelled.".to_string();

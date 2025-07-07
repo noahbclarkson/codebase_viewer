@@ -122,7 +122,7 @@ impl CodebaseApp {
             for (id, cache_entry) in rx.try_iter() {
                 if self.selected_node_id == Some(id) {
                     log::trace!("Received preview for selected node {}", id);
-                    self.preview_cache = Some(std::sync::Arc::new(std::sync::Mutex::new(cache_entry)));
+                    self.preview_cache = Some(std::sync::Arc::new(parking_lot::Mutex::new(cache_entry))); // MODIFIED
                 } else {
                     log::trace!("Received preview for node {}, but node {:?} is selected. Ignoring.", id, self.selected_node_id);
                 }

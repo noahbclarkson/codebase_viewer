@@ -31,17 +31,16 @@ impl CodebaseApp {
     /// The result will be sent back via the `preview_receiver`.
     pub(crate) fn trigger_preview_load(&mut self, node_id: FileId, ctx: &Context) {
         if let Some(node) = self.nodes.get(node_id) {
-            // Don't load previews for directories
             if node.is_dir() {
-                self.preview_cache = None; // Clear cache when selecting a directory
+                self.preview_cache = None;
                 return;
             }
 
-            // --- Cache Check ---
             if let Some(cache_mutex) = &self.preview_cache {
-                if let Ok(cache) = cache_mutex.try_lock() {
+                // MODIFIED: Use `if let Some(guard) = ...` for Option
+                if let Some(cache) = cache_mutex.try_lock() {
                     let current_theme_name = self.get_current_syntax_theme_name();
-                    let theme_matches = match cache.content {
+                    let theme_matches = match &cache.content {
                         preview::PreviewContent::Text(_) => {
                             cache.theme_used.as_deref() == Some(&current_theme_name)
                         }
@@ -55,7 +54,6 @@ impl CodebaseApp {
                 }
             }
 
-            // --- Start Background Loading ---
             log::trace!("Initiating preview load for node {}", node_id);
             let path = node.path().to_path_buf();
             let cfg = self.config.clone();

@@ -9,12 +9,13 @@ use crate::{
     task::{ScanMessage, TaskMessage},
 };
 use crossbeam_channel::{Receiver, Sender};
+use parking_lot::Mutex; // MODIFIED: Use parking_lot::Mutex
 use std::{
     collections::HashMap,
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc,
     },
     thread::JoinHandle,
 };
@@ -38,7 +39,7 @@ pub struct CodebaseApp {
     pub(crate) selected_node_id: Option<FileId>,
     pub(crate) search_text: String,
     pub(crate) status_message: String,
-    pub(crate) preview_cache: Option<Arc<Mutex<PreviewCache>>>,
+    pub(crate) preview_cache: Option<Arc<Mutex<PreviewCache>>>, // MODIFIED
     pub(crate) show_preview_panel: bool,
     pub(crate) show_preferences_window: bool,
     pub(crate) show_report_options_window: bool,

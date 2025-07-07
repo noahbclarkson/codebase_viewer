@@ -11,6 +11,53 @@ categories = ["development-tools", "gui"]
 readme = "README.md"
 rust-version = "1.77"
 
+[workspace.lints.rust]
+unsafe_code = "deny"
+elided_lifetimes_in_paths = "warn"
+future_incompatible = { level = "warn", priority = -1 }
+nonstandard_style = { level = "warn", priority = -1 }
+rust_2018_idioms = { level = "warn", priority = -1 }
+trivial_numeric_casts = "warn"
+unused_extern_crates = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.rustdoc]
+all = "warn"
+missing_crate_level_docs = "warn"
+broken_intra_doc_links = "warn"
+
+# See also clippy.toml
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+
+# --- Allowed Lints ---
+# Stuff that is too noisy or we disagree with
+# pedantic:
+cognitive_complexity = "allow"
+fallible_impl_from = "allow"
+future_not_send = "allow" # noisy in async code
+let_underscore_untyped = "allow"
+manual_string_new = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+redundant_else = "allow"
+similar_names = "allow"
+single_match_else = "allow"
+struct_excessive_bools = "allow"
+too_many_lines = "allow"
+# nursery:
+missing_const_for_fn = "allow"
+# all:
+if_same_then_else = "allow"
+needless_pass_by_value = "allow" # can make for more readable code
+# cargo:
+cargo_common_metadata = "allow"
+
 [dependencies]
 anyhow = "1.0.98"
 chrono = { version = "0.4.41", features = ["serde"] }
@@ -39,6 +86,7 @@ regex = "1.11.1"
 egui-phosphor = "0.9"
 egui_material_icons = "0.3.0"
 arboard = "3.6"
+parking_lot = "0.12.4" # ADDED: For better mutexes
 
 [profile.release]
 codegen-units = 1
