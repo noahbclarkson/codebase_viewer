@@ -10,7 +10,6 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
     ui.horizontal(|ui| {
         ui.heading("File Preview");
         ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
-            // Button to hide the panel (using an 'X' icon)
             let close_button = ui
                 .add(egui::Button::new(RichText::new(X).size(16.0)).frame(false))
                 .on_hover_text("Hide Preview Panel (F9)");
@@ -18,17 +17,11 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
                 app.show_preview_panel = false;
             }
 
-            // Word Wrap Toggle Button
-            // MODIFIED: Use `ui.toggle_value` for a frameless, icon-only toggle button.
             let word_wrap_button = ui
-                .toggle_value(
-                    &mut app.preview_word_wrap,
-                    RichText::new(TEXT_ALIGN_JUSTIFY),
-                )
+                .toggle_value(&mut app.preview_word_wrap, RichText::new(TEXT_ALIGN_JUSTIFY))
                 .on_hover_text("Toggle Word Wrap");
 
             if word_wrap_button.clicked() {
-                // Invalidate cache to force re-layout of text
                 app.preview_cache = None;
                 if let Some(id) = app.selected_node_id {
                     app.trigger_preview_load(id, ui.ctx());
@@ -47,27 +40,29 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
                 if let Some(node) = app.nodes.get(selected_id) {
                     // Display File Path and Basic Info Header
                     ui.horizontal_wrapped(|ui| {
-                        ui.label(
-                            RichText::new(node.path().display().to_string())
-                                .weak()
-                                .small(),
-                        );
+                        ui.label(RichText::new(node.path().display().to_string()).weak().small());
                     });
-                    let modified_str = node
-                        .info
-                        .modified
-                        .map(|st| {
-                            let datetime: chrono::DateTime<chrono::Local> = st.into();
-                            datetime.format("%Y-%m-%d %H:%M:%S").to_string()
-                        })
-                        .unwrap_or_else(|| "N/A".to_string());
+
+                    let modified_str = node.info.modified.as_ref().map(|st| {
+                        let datetime: chrono::DateTime<chrono::Local> = (*st).into();
+                        datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+                    }).unwrap_or_else(|| "N/A".to_string());
+
+                    let mut meta_text = format!("Size: {} | Modified: {}", node.info.human_size, modified_str);
+                    // MODIFIED: Access fields directly from `tokei::Language`
+                    if let Some(loc_stats) = &node.info.loc_stats {
+                        meta_text += &format!(" | Lines: {} (code: {}, comments: {}, blank: {})",
+                            loc_stats.lines(),
+                            loc_stats.code,
+                            loc_stats.comments,
+                            loc_stats.blanks
+                        );
+                    }
+
                     ui.label(
-                        RichText::new(format!(
-                            "Size: {} | Modified: {}",
-                            node.info.human_size, modified_str
-                        ))
-                        .small()
-                        .color(ui.visuals().text_color().gamma_multiply(0.7)),
+                        RichText::new(meta_text)
+                            .small()
+                            .color(ui.visuals().text_color().gamma_multiply(0.7)),
                     );
                     ui.separator();
                     ui.add_space(4.0);
@@ -78,12 +73,7 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
                             match cache_mutex.try_lock() {
                                 Some(cache) => {
                                     if cache.node_id == selected_id {
-                                        // Pass the word wrap state to the rendering function
-                                        preview::render_preview_content(
-                                            ui,
-                                            &cache.content,
-                                            app.preview_word_wrap,
-                                        );
+                                        preview::render_preview_content(ui, &cache.content, app.preview_word_wrap);
                                     } else {
                                         ui.horizontal(|ui| {
                                             ui.spinner();
@@ -103,11 +93,7 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
                             if node.is_dir() {
                                 ui.vertical_centered(|ui| {
                                     ui.add_space(ui.available_height() * 0.3);
-                                    ui.label(
-                                        RichText::new(FOLDER_OPEN)
-                                            .size(48.0)
-                                            .color(ui.visuals().weak_text_color()),
-                                    );
+                                    ui.label(RichText::new(FOLDER_OPEN).size(48.0).color(ui.visuals().weak_text_color()));
                                     ui.label(RichText::new("Directory Selected").strong());
                                 });
                             } else {

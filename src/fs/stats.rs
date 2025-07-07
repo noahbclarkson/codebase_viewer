@@ -1,95 +1,84 @@
 //! Defines `ScanStats` for collecting statistics during directory scanning.
 
-use crate::fs::FileInfo; // Use FileInfo from the same module
+use crate::fs::FileInfo;
 use humansize::{format_size, DECIMAL};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::Path};
 
 /// Statistics collected during a directory scan.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ScanStats {
-    /// Total number of files encountered (excluding directories).
     pub total_files: usize,
-    /// Total number of directories encountered.
     pub total_dirs: usize,
-    /// Total size of all files in bytes.
     pub total_size_bytes: u64,
-    /// Counts of files per extension (e.g., {".rs": 10, ".toml": 2}).
     pub file_types: HashMap<String, usize>,
-    /// Information about the top N largest files found.
     pub largest_files: Vec<FileStatInfo>,
-    /// List of error messages encountered during the scan (e.g., permission errors).
     pub errors: Vec<String>,
-    // pub empty_dirs: Vec<PathBuf>, // Example: Could track empty directories if needed
+    #[serde(skip)]
+    pub language_stats: tokei::Languages,
+}
+
+impl Clone for ScanStats {
+    fn clone(&self) -> Self {
+        Self {
+            total_files: self.total_files,
+            total_dirs: self.total_dirs,
+            total_size_bytes: self.total_size_bytes,
+            file_types: self.file_types.clone(),
+            largest_files: self.largest_files.clone(),
+            errors: self.errors.clone(),
+            language_stats: Default::default(),
+        }
+    }
 }
 
 /// Simplified information about a file, used for tracking largest files.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)] // Added PartialEq/Eq for potential sorting/deduplication
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FileStatInfo {
-    /// Path relative to the scan root. Stored as String for serialization.
     pub path: String,
-    /// Size of the file in bytes.
     pub size: u64,
-    /// Human-readable size string.
     pub human_size: String,
 }
 
-/// Maximum number of largest files to track and display.
 const MAX_LARGEST_FILES: usize = 10;
 
 impl ScanStats {
     /// Updates the statistics based on a discovered `FileInfo`.
-    ///
-    /// # Arguments
-    /// * `info` - The `FileInfo` of the discovered file or directory.
-    /// * `root_path` - The root path of the scan, used to calculate relative paths for largest files.
     pub fn add_file(&mut self, info: &FileInfo, root_path: &Path) {
         if info.is_dir {
             self.add_dir();
-            return; // Don't process directories further for file stats
+            return;
         }
 
-        // Update file counts and size
         self.total_files += 1;
         self.total_size_bytes += info.size;
 
-        // Update file type counts based on extension
         let extension_key = info.extension.as_deref().map_or_else(
-            || "(no extension)".to_string(), // Key for files without extension
-            |ext| format!(".{}", ext),       // Key like ".rs", ".txt"
+            || "(no extension)".to_string(),
+            |ext| format!(".{}", ext),
         );
         *self.file_types.entry(extension_key).or_insert(0) += 1;
 
-        // Update largest files list if this file qualifies
-        // Check if the list is not full OR if this file is larger than the smallest in the list
-        if info.size > 0 && // Only consider non-empty files
-           (self.largest_files.len() < MAX_LARGEST_FILES ||
-            info.size > self.largest_files.last().map_or(0, |f| f.size))
-        {
-            // Calculate relative path safely
-            let relative_path = info
-                .path
-                .strip_prefix(root_path)
-                .unwrap_or(&info.path) // Fallback to full path if strip fails (shouldn't normally happen)
-                .display()
-                .to_string();
+        if let Some(loc_stats) = &info.loc_stats {
+            let language_type = tokei::LanguageType::from_path(&info.path, &tokei::Config::default());
+            if let Some(lang_type) = language_type {
+                let entry = self.language_stats.entry(lang_type).or_default();
 
-            // Create info struct for the largest files list
-            let stat_info = FileStatInfo {
-                path: relative_path,
-                size: info.size,
-                human_size: info.human_size.clone(),
-            };
+                // MODIFIED: Manually add the stats.
+                entry.blanks += loc_stats.blanks;
+                entry.code += loc_stats.code;
+                entry.comments += loc_stats.comments;
+                // Also merge the reports, which contain individual file stats.
+                entry.reports.extend(loc_stats.reports.clone());
+            }
+        }
 
-            // Insert and maintain sorted order (descending by size)
-            // Find the correct position to insert
-            let pos = self
-                .largest_files
-                .partition_point(|f| f.size >= stat_info.size);
-            // Insert if it belongs within the top N
+        if info.size > 0 && (self.largest_files.len() < MAX_LARGEST_FILES || info.size > self.largest_files.last().map_or(0, |f| f.size)) {
+            let relative_path = info.path.strip_prefix(root_path).unwrap_or(&info.path).display().to_string();
+            let stat_info = FileStatInfo { path: relative_path, size: info.size, human_size: info.human_size.clone() };
+            let pos = self.largest_files.partition_point(|f| f.size >= stat_info.size);
             if pos < MAX_LARGEST_FILES {
                 self.largest_files.insert(pos, stat_info);
-                // Trim the list if it exceeds the max size
                 self.largest_files.truncate(MAX_LARGEST_FILES);
             }
         }
@@ -102,65 +91,44 @@ impl ScanStats {
 
     /// Adds an error message encountered during the scan.
     pub fn add_error(&mut self, error: String) {
-        // Limit the number of stored errors to avoid excessive memory usage
         match self.errors.len() {
-            len if len < 100 => {
-                // Store up to 100 errors
-                self.errors.push(error);
-            }
-            100 => {
-                self.errors
-                    .push("... more errors truncated ...".to_string());
-            }
-            _ => {} // Do nothing if we've already exceeded the limit
+            len if len < 100 => self.errors.push(error),
+            100 => self.errors.push("... more errors truncated ...".to_string()),
+            _ => {}
         }
     }
 
     /// Merges statistics from another `ScanStats` instance.
-    /// Useful if partial stats are generated by parallel tasks, although
-    /// the current `ignore::WalkParallel` approach aggregates implicitly.
     pub fn merge(&mut self, other: ScanStats) {
         self.total_files += other.total_files;
         self.total_dirs += other.total_dirs;
         self.total_size_bytes += other.total_size_bytes;
         self.errors.extend(other.errors);
-        // Limit merged errors as well
         if self.errors.len() > 101 {
-            // Allow one extra for the truncation message
             self.errors.truncate(101);
             if !self.errors.last().is_some_and(|s| s.contains("truncated")) {
-                self.errors
-                    .push("... more errors truncated ...".to_string());
+                self.errors.push("... more errors truncated ...".to_string());
             }
         }
 
-        // Merge file type counts
         for (ext, count) in other.file_types {
             *self.file_types.entry(ext).or_insert(0) += count;
         }
 
-        // Merge largest files lists (keep top N overall)
+        for (language_type, language) in other.language_stats {
+            self.language_stats.insert(language_type, language);
+        }
+
         self.largest_files.extend(other.largest_files);
-        // Sort descending by size after merging
-        self.largest_files
-            .sort_unstable_by(|a, b| b.size.cmp(&a.size));
-        // Remove duplicates that might occur if merging identical stats
-        self.largest_files
-            .dedup_by(|a, b| a.path == b.path && a.size == b.size);
-        // Truncate to the maximum size
+        self.largest_files.sort_unstable_by(|a, b| b.size.cmp(&a.size));
+        self.largest_files.dedup_by(|a, b| a.path == b.path && a.size == b.size);
         self.largest_files.truncate(MAX_LARGEST_FILES);
     }
 
-    /// Performs any final calculations or sorting after the scan is complete.
-    /// Currently, sorting/truncating of `largest_files` happens incrementally,
-    /// so this method is a placeholder for potential future use.
     pub fn finalize(&mut self) {
-        // Example: Could sort file_types map here if needed for consistent output,
-        // but reports usually sort it themselves.
         log::debug!("Finalizing scan statistics.");
     }
 
-    /// Returns the total size formatted as a human-readable string (e.g., "1.2 GB").
     pub fn total_size_human(&self) -> String {
         format_size(self.total_size_bytes, DECIMAL)
     }
