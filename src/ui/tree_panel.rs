@@ -4,14 +4,13 @@ use crate::{
     app::{AppAction, CodebaseApp},
     model::{Check, FileId},
 };
-// Removed unused Response import
 use egui::{Button, Color32, CornerRadius, Id, RichText, ScrollArea, Ui};
-use egui_phosphor::regular::*; // Import icons
+use egui_phosphor::regular::*;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 
 // --- Static Icon Mapping ---
-// Lazily initialized HashMap to map file extensions (lowercase) to Phosphor icon characters.
+// (This section remains unchanged)
 static ICONS: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     HashMap::from([
         // Programming & Markup
@@ -27,17 +26,14 @@ static ICONS: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
         ("tsx", FILE_TSX),
         ("py", FILE_PY),
         ("java", COFFEE),
-        // Use CODE_SIMPLE for C/C++ headers
         ("c", FILE_C),
         ("h", CODE_SIMPLE),
         ("cpp", FILE_CPP),
         ("hpp", CODE_SIMPLE),
-        // Use FILE_CODE for C# and PHP as specific icons are missing
         ("cs", FILE_CODE),
-        ("go", GOOGLE_LOGO), // Using Google logo as a placeholder for Go Gopher
+        ("go", GOOGLE_LOGO),
         ("rb", DIAMOND),
         ("php", FILE_CODE),
-        // Use BIRD for Swift, TRIANGLE for Kotlin
         ("swift", BIRD),
         ("kt", TRIANGLE),
         ("json", BRACKETS_CURLY),
@@ -94,25 +90,29 @@ static ICONS: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
         ("a", GEAR_FINE),
         ("lib", GEAR_FINE),
         ("o", GEAR_FINE),
-        // Default handled later (FILE icon)
     ])
 });
+
+/// A flattened representation of a tree node for virtual scrolling.
+struct TreeRow {
+    id: FileId,
+    depth: usize,
+}
 
 /// Draws the tree panel UI, including toolbar and the scrollable tree view.
 pub fn draw_tree_panel(app: &mut CodebaseApp, ui: &mut Ui) {
     // --- Toolbar Area ---
     ui.vertical(|ui| {
-        // Path Display (Show root directory name or full path if no name)
+        // Path Display
         ui.horizontal(|ui| {
-            ui.label(FOLDER_NOTCH_OPEN); // Icon for directory path
+            ui.label(FOLDER_NOTCH_OPEN);
             let path_text = match &app.root_path {
                 Some(p) => p.file_name().map_or_else(
-                    || p.display().to_string(), // Show full path if root has no name (e.g., "/")
-                    |n| n.to_string_lossy().into_owned(), // Show directory name
+                    || p.display().to_string(),
+                    |n| n.to_string_lossy().into_owned(),
                 ),
                 None => "No directory selected".to_string(),
             };
-            // Use a tooltip for the full path
             ui.label(RichText::new(&path_text).strong()).on_hover_text(
                 app.root_path
                     .as_ref()
@@ -124,48 +124,31 @@ pub fn draw_tree_panel(app: &mut CodebaseApp, ui: &mut Ui) {
         // Tree Control Buttons
         ui.horizontal(|ui| {
             let tree_loaded = app.root_id.is_some();
-            let button_size = egui::vec2(20.0, 20.0); // Smaller buttons
+            let button_size = egui::vec2(20.0, 20.0);
 
-            // Use icons for buttons for a cleaner look
             if ui
-                .add_enabled(
-                    tree_loaded,
-                    Button::new(ARROW_ELBOW_DOWN_RIGHT)
-                        .small()
-                        .min_size(button_size),
-                )
+                .add_enabled(tree_loaded, Button::new(ARROW_ELBOW_DOWN_RIGHT).small().min_size(button_size))
                 .on_hover_text("Expand All")
                 .clicked()
             {
                 app.queue_action(AppAction::ExpandAllNodes);
             }
             if ui
-                .add_enabled(
-                    tree_loaded,
-                    Button::new(ARROW_ELBOW_UP_LEFT)
-                        .small()
-                        .min_size(button_size),
-                )
+                .add_enabled(tree_loaded, Button::new(ARROW_ELBOW_UP_LEFT).small().min_size(button_size))
                 .on_hover_text("Collapse All")
                 .clicked()
             {
                 app.queue_action(AppAction::CollapseAllNodes);
             }
             if ui
-                .add_enabled(
-                    tree_loaded,
-                    Button::new(CHECK_SQUARE).small().min_size(button_size),
-                )
+                .add_enabled(tree_loaded, Button::new(CHECK_SQUARE).small().min_size(button_size))
                 .on_hover_text("Select All")
                 .clicked()
             {
                 app.queue_action(AppAction::SelectAllNodes);
             }
             if ui
-                .add_enabled(
-                    tree_loaded,
-                    Button::new(SQUARE).small().min_size(button_size),
-                )
+                .add_enabled(tree_loaded, Button::new(SQUARE).small().min_size(button_size))
                 .on_hover_text("Deselect All")
                 .clicked()
             {
@@ -176,303 +159,221 @@ pub fn draw_tree_panel(app: &mut CodebaseApp, ui: &mut Ui) {
 
         // Search Box
         ui.horizontal(|ui| {
-            ui.label(MAGNIFYING_GLASS); // Search icon
-            let search_box_id = Id::new("tree_search_box"); // Unique ID for the search box
-                                                            // Keep the response, it's needed for focus logic
+            ui.label(MAGNIFYING_GLASS);
+            let search_box_id = Id::new("tree_search_box");
             let search_response = ui.add(
                 egui::TextEdit::singleline(&mut app.search_text)
                     .hint_text("Search files...")
-                    .id(search_box_id) // Assign the ID
-                    .desired_width(f32::INFINITY), // Take available width
+                    .id(search_box_id)
+                    .desired_width(f32::INFINITY),
             );
 
-            // Handle focus request (e.g., from Ctrl+F)
             if app.focus_search_box {
-                // Use the response's ID to request focus
                 ui.memory_mut(|mem| mem.request_focus(search_response.id));
-                app.focus_search_box = false; // Reset the flag
+                app.focus_search_box = false;
             }
 
-            // Add a clear button if there's text in the search box
-            // Collapsed the nested if as suggested by clippy
             if !app.search_text.is_empty()
-                && ui
-                    .add(Button::new(X_CIRCLE).small().frame(false))
-                    .on_hover_text("Clear search")
-                    .clicked()
+                && ui.add(Button::new(X_CIRCLE).small().frame(false)).on_hover_text("Clear search").clicked()
             {
                 app.search_text.clear();
-                // Optionally clear focus or keep it
             }
-
-            // Log changes for debugging if needed
-            // if search_response.changed() {
-            //     log::debug!("Search text changed: {}", app.search_text);
-            // }
         });
-    }); // End Toolbar Area
+    });
 
     ui.separator();
 
-    // --- Tree View Area ---
-    ScrollArea::vertical()
-        .id_salt(egui::Id::new("tree_scroll_area")) // Unique ID for scroll area state
-        .auto_shrink([false; 2]) // Fill available space
-        .show(ui, |ui| {
-            if let Some(root_id) = app.root_id {
-                // Start drawing the tree recursively from the root
-                draw_tree_node_recursive(app, ui, root_id);
-            } else if app.is_scanning {
-                // Show loading indicator if scanning
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label("Scanning directory...");
-                });
-            } else {
-                // Show placeholder message if no directory is loaded
-                ui.centered_and_justified(|ui| {
-                    ui.label("Open a directory (File > Open Directory...)");
-                });
+    // --- Tree View Area (with Virtual Scrolling) ---
+    if let Some(root_id) = app.root_id {
+        // 1. Flatten the visible tree into a linear list
+        let mut rows = Vec::new();
+        flatten_tree(app, root_id, 0, &app.search_text.to_lowercase(), &mut rows);
+
+        // 2. Use `show_rows` for efficient virtual scrolling (handles its own scrolling)
+        let row_height = ui.spacing().interact_size.y;
+        ScrollArea::vertical().show_rows(ui, row_height, rows.len(), |ui, row_range| {
+            for i in row_range {
+                if let Some(row) = rows.get(i) {
+                    draw_single_row(app, ui, row.id, row.depth);
+                }
             }
-        }); // End ScrollArea
+        });
+    } else if app.is_scanning {
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label("Scanning directory...");
+        });
+    } else {
+        ui.centered_and_justified(|ui| {
+            ui.label("Open a directory (File > Open Directory...)");
+        });
+    }
 }
 
-/// Recursively draws a node and its children in the tree view.
-/// Handles indentation, icons, selection, expansion, filtering, and context menus.
-fn draw_tree_node_recursive(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId) {
-    // Get the node data immutably first
-    let node = match app.nodes.get(node_id) {
-        Some(n) => n,
-        None => {
-            log::error!("Attempted to draw invalid node ID: {}", node_id);
-            return; // Don't draw if node ID is invalid
-        }
-    };
-
-    // --- Filtering Logic ---
-    // Check if the node itself or any descendant matches the search text
-    let is_match = check_search_match_recursive(app, node_id, &app.search_text);
-    if !is_match {
-        return; // Skip drawing this node and its children if no match found
+/// Recursively flattens the tree into a `Vec<TreeRow>` for virtual scrolling.
+/// Only includes nodes that match the search filter.
+fn flatten_tree(
+    app: &CodebaseApp,
+    node_id: FileId,
+    depth: usize,
+    lower_search: &str,
+    rows: &mut Vec<TreeRow>,
+) {
+    if !check_search_match_recursive(app, node_id, lower_search) {
+        return;
     }
 
+    rows.push(TreeRow { id: node_id, depth });
+
+    if let Some(node) = app.nodes.get(node_id) {
+        if node.is_dir() && node.is_expanded {
+            for &child_id in &node.children {
+                flatten_tree(app, child_id, depth + 1, lower_search, rows);
+            }
+        }
+    }
+}
+
+/// Draws a single row in the tree view.
+/// This function contains the logic previously in `draw_tree_node_recursive`,
+/// but without the recursion itself.
+fn draw_single_row(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId, depth: usize) {
+    let node = match app.nodes.get(node_id) {
+        Some(n) => n,
+        None => return,
+    };
+
     // --- Node Data Extraction ---
-    // Clone necessary data to avoid borrowing issues later
     let is_dir = node.is_dir();
-    let name = node.name().to_string(); // Clone name string
+    let name = node.name().to_string();
     let node_state = node.state;
     let is_expanded = node.is_expanded;
-    let children_ids = node.children.clone(); // Clone children IDs
     let extension = node.info.extension.as_deref().unwrap_or("");
 
     // --- Icon Selection ---
     let icon = if is_dir {
-        // Use different icons for open/closed folders
-        if is_expanded {
-            FOLDER_OPEN
-        } else {
-            FOLDER
-        }
+        if is_expanded { FOLDER_OPEN } else { FOLDER }
     } else {
-        // Look up icon based on extension, default to generic file icon
         ICONS.get(extension).copied().unwrap_or(FILE)
     };
 
     // --- Row Layout ---
-    // Use a horizontal layout for each node's row
-    let _row_response = ui
-        .horizontal(|ui| {
-            // Assign to _ to silence unused variable warning if response isn't used
-            // Indentation (visual only, using spaces) - Adjust space size as needed
-            // let indent_level = ui.indentation_level(); // Not directly available, manage manually if needed
-            // ui.add_space(indent_level * 10.0); // Example manual indent
+    ui.horizontal(|ui| {
+        // Indentation
+        ui.add_space(depth as f32 * ui.spacing().indent);
 
-            // 1. Checkbox
-            let initial_check_state = match node_state {
-                Check::Unchecked => false,
-                Check::Checked | Check::Partial => true,
-            };
-            let mut current_check_state = initial_check_state; // Temporary state for the checkbox widget
+        // 1. Checkbox
+        let initial_check_state = node_state != Check::Unchecked;
+        let mut current_check_state = initial_check_state;
+        let checkbox_response = ui.add(egui::Checkbox::new(&mut current_check_state, ""));
+        if node_state == Check::Partial {
+            let rect = checkbox_response.rect;
+            let smaller_rect = rect.shrink(rect.width() * 0.3);
+            ui.painter().rect_filled(
+                smaller_rect,
+                CornerRadius::ZERO,
+                ui.visuals().strong_text_color(),
+            );
+        }
+        if checkbox_response.clicked() {
+            app.queue_action(AppAction::ToggleCheckState(node_id));
+        }
 
-            // Create the checkbox widget
-            let checkbox_response = ui.add(egui::Checkbox::new(&mut current_check_state, ""));
-
-            // Draw the indeterminate state (partial) manually if needed
-            if node_state == Check::Partial {
-                let rect = checkbox_response.rect;
-                // Draw a smaller filled square inside the checkbox bounds
-                let smaller_rect = rect.shrink(rect.width() * 0.3);
-                ui.painter().rect_filled(
-                    smaller_rect,
-                    CornerRadius::ZERO, // Sharp corners for the inner square
-                    ui.visuals().strong_text_color(), // Use a contrasting color
-                );
+        // 2. Expand/Collapse Toggle
+        if is_dir {
+            let toggle_icon = if is_expanded { CARET_DOWN } else { CARET_RIGHT };
+            if ui.selectable_label(false, RichText::new(toggle_icon).size(14.0)).clicked() {
+                app.queue_action(AppAction::ToggleExpandState(node_id));
             }
+        } else {
+            ui.label(RichText::new(DOT_OUTLINE).size(14.0).weak());
+        }
 
-            // If the checkbox was clicked, queue the action to toggle the state
-            if checkbox_response.clicked() {
-                app.queue_action(AppAction::ToggleCheckState(node_id));
-            }
+        // 3. Icon and Name Label
+        let label_text = format!("{} {}", icon, name);
+        let is_selected = app.selected_node_id == Some(node_id);
+        let display_text = if !app.search_text.is_empty() && name.to_lowercase().contains(&app.search_text.to_lowercase()) {
+            RichText::new(label_text).strong().color(ui.visuals().hyperlink_color)
+        } else {
+            RichText::new(label_text)
+        };
+        let label_response = ui.selectable_label(is_selected, display_text);
 
-            // 2. Expand/Collapse Toggle (for directories)
-            if is_dir {
-                // Use a clickable label with a caret icon
-                let toggle_icon = if is_expanded { CARET_DOWN } else { CARET_RIGHT };
-                // Make the toggle visually distinct but small
-                if ui
-                    .selectable_label(false, RichText::new(toggle_icon).size(14.0))
-                    .clicked()
-                {
-                    app.queue_action(AppAction::ToggleExpandState(node_id));
-                }
+        if label_response.clicked() {
+            app.selected_node_id = Some(node_id);
+        }
+        if label_response.double_clicked() && is_dir {
+            app.queue_action(AppAction::ToggleExpandState(node_id));
+        }
+
+        // 4. Context Menu
+        label_response.context_menu(|ui| {
+            let node_id_clone = node_id;
+            // Extract node data first to avoid borrow conflicts
+            let (node_name, node_path, is_expanded, is_directory) = if let Some(ctx_node) = app.nodes.get(node_id) {
+                (
+                    ctx_node.name().to_string(),
+                    ctx_node.path().display().to_string(),
+                    ctx_node.is_expanded,
+                    ctx_node.is_dir(),
+                )
             } else {
-                // Add spacing for files to align them with directory names
-                ui.label(RichText::new(DOT_OUTLINE).size(14.0).weak()); // Placeholder dot for files
-            }
-
-            // 3. Icon and Name Label
-            let label_text = format!("{} {}", icon, name);
-            let is_selected = app.selected_node_id == Some(node_id);
-
-            // Highlight text if it matches the search query
-            let display_text = if !app.search_text.is_empty()
-                && name
-                    .to_lowercase()
-                    .contains(&app.search_text.to_lowercase())
-            {
-                RichText::new(label_text)
-                    .strong()
-                    .color(ui.visuals().hyperlink_color) // Use hyperlink color for matches
-            } else {
-                RichText::new(label_text)
+                ui.label(RichText::new("Error: Node data unavailable").color(Color32::RED));
+                return;
             };
 
-            // Create the main selectable label for the node name
-            let label_response = ui.selectable_label(is_selected, display_text);
+            ui.label(RichText::new(node_name).strong());
+            ui.label(RichText::new(node_path).small().weak());
+            ui.separator();
 
-            // Handle click on the label (selects the node)
-            if label_response.clicked() {
-                app.selected_node_id = Some(node_id);
-                // Preview loading is handled in app.rs based on selection change
+            if ui.button("Toggle Selection").clicked() {
+                app.queue_action(AppAction::ToggleCheckState(node_id_clone));
+                ui.close_menu();
             }
 
-            // Handle double-click (toggle expansion for dirs, maybe open file externally?)
-            if label_response.double_clicked() {
-                if is_dir {
-                    app.queue_action(AppAction::ToggleExpandState(node_id));
-                } else {
-                    // Optional: Open file on double click?
-                    // app.queue_action(AppAction::OpenNodeExternally(node_id));
+            if is_directory {
+                if ui.button(if is_expanded { "Collapse Node" } else { "Expand Node" }).clicked() {
+                    app.queue_action(AppAction::ToggleExpandState(node_id_clone));
+                    ui.close_menu();
                 }
+                if ui.button("Select All Children").clicked() {
+                    app.queue_action(AppAction::SelectAllChildren(node_id_clone));
+                    ui.close_menu();
+                }
+                if ui.button("Deselect All Children").clicked() {
+                    app.queue_action(AppAction::DeselectAllChildren(node_id_clone));
+                    ui.close_menu();
+                }
+            } else if ui.button("Preview File").clicked() {
+                app.selected_node_id = Some(node_id_clone);
+                app.show_preview_panel = true;
+                ui.close_menu();
             }
 
-            // 4. Context Menu
-            label_response.context_menu(|ui| {
-                // Clone the node_id to avoid borrow issues
-                let node_id_clone = node_id;
-
-                // Get node data again safely inside the closure
-                if let Some(ctx_node) = app.nodes.get(node_id) {
-                    let node_name = ctx_node.name().to_string();
-                    let node_path = ctx_node.path().display().to_string();
-                    let is_expanded = ctx_node.is_expanded;
-
-                    ui.label(RichText::new(node_name).strong());
-                    ui.label(RichText::new(node_path).small().weak());
-                    ui.separator();
-
-                    if ui.button("Toggle Selection").clicked() {
-                        app.queue_action(AppAction::ToggleCheckState(node_id_clone));
-                        if ui
-                            .button(if is_expanded {
-                                "Collapse Node"
-                            } else {
-                                "Expand Node"
-                            })
-                            .clicked()
-                        {
-                            app.queue_action(AppAction::ToggleExpandState(node_id_clone));
-                            ui.close_menu();
-                        }
-                        if ui.button("Select All Children").clicked() {
-                            app.queue_action(AppAction::SelectAllChildren(node_id_clone));
-                            ui.close_menu();
-                        }
-                        if ui.button("Deselect All Children").clicked() {
-                            app.queue_action(AppAction::DeselectAllChildren(node_id_clone));
-                            ui.close_menu();
-                        }
-                    } else {
-                        // Action specific to files
-                        if ui.button("Preview File").clicked() {
-                            app.selected_node_id = Some(node_id_clone);
-                            // Preview loading handled by selection change logic in app.rs
-                            app.show_preview_panel = true; // Ensure preview panel is visible
-                            ui.close_menu();
-                        }
-                    }
-
-                    ui.separator();
-                    if ui.button("Open Externally").clicked() {
-                        app.queue_action(AppAction::OpenNodeExternally(node_id_clone));
-                        ui.close_menu();
-                    }
-                    if ui.button("Open Externally").clicked() {
-                        app.queue_action(AppAction::OpenNodeExternally(node_id));
-                        ui.close_menu();
-                    }
-                } else {
-                    ui.label(RichText::new("Error: Node data unavailable").color(Color32::RED));
-                }
-            }); // End context menu
-        })
-        .response; // Get the response of the horizontal layout
-
-    // --- Draw Children Recursively ---
-    // If the node is an expanded directory, draw its children indented
-    if is_dir && is_expanded {
-        // Use egui's indentation helper
-        ui.indent(format!("indent_{}", node_id), |ui| {
-            if children_ids.is_empty() {
-                // Optionally indicate empty directories
-                // ui.label(RichText::new(" (empty)").weak().small());
-            } else {
-                // Recursively draw each child node
-                for child_id in children_ids {
-                    draw_tree_node_recursive(app, ui, child_id);
-                }
+            ui.separator();
+            if ui.button("Open Externally").clicked() {
+                app.queue_action(AppAction::OpenNodeExternally(node_id_clone));
+                ui.close_menu();
             }
         });
-    }
+    });
 }
 
-/// Helper function to check if a node or any of its descendants match the search text (case-insensitive).
-/// Used for filtering the tree view.
-fn check_search_match_recursive(app: &CodebaseApp, node_id: FileId, search_text: &str) -> bool {
-    // If search text is empty, everything matches
-    if search_text.is_empty() {
+/// Helper function to check if a node or any of its descendants match the search text.
+fn check_search_match_recursive(app: &CodebaseApp, node_id: FileId, lower_search: &str) -> bool {
+    if lower_search.is_empty() {
         return true;
     }
 
-    // Normalize search text once
-    let lower_search = search_text.to_lowercase();
-
-    // Check the current node
     if let Some(node) = app.nodes.get(node_id) {
-        // Check if the node name contains the search text
-        if node.name().to_lowercase().contains(&lower_search) {
+        if node.name().to_lowercase().contains(lower_search) {
             return true;
         }
-
-        // If it's a directory, check if any children match recursively
         if node.is_dir() {
             return node.children.iter().any(|&child_id| {
-                // Short-circuit recursion if a match is found
-                check_search_match_recursive(app, child_id, &lower_search) // Pass normalized search text down
+                check_search_match_recursive(app, child_id, lower_search)
             });
         }
     }
-
-    // No match found for this node or its descendants
     false
 }
