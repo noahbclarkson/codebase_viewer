@@ -10,11 +10,29 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
     ui.horizontal(|ui| {
         ui.heading("File Preview");
         ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+            // Button to hide the panel (using an 'X' icon)
             let close_button = ui
                 .add(egui::Button::new(RichText::new(X).size(16.0)).frame(false))
                 .on_hover_text("Hide Preview Panel (F9)");
             if close_button.clicked() {
                 app.show_preview_panel = false;
+            }
+
+            // Word Wrap Toggle Button
+            // MODIFIED: Use `ui.toggle_value` for a frameless, icon-only toggle button.
+            let word_wrap_button = ui
+                .toggle_value(
+                    &mut app.preview_word_wrap,
+                    RichText::new(TEXT_ALIGN_JUSTIFY),
+                )
+                .on_hover_text("Toggle Word Wrap");
+
+            if word_wrap_button.clicked() {
+                // Invalidate cache to force re-layout of text
+                app.preview_cache = None;
+                if let Some(id) = app.selected_node_id {
+                    app.trigger_preview_load(id, ui.ctx());
+                }
             }
         });
     });
@@ -57,11 +75,15 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
                     // Display Preview Content based on cache state
                     match &app.preview_cache {
                         Some(cache_mutex) => {
-                            // MODIFIED: Match on Option, not Result
                             match cache_mutex.try_lock() {
                                 Some(cache) => {
                                     if cache.node_id == selected_id {
-                                        preview::render_preview_content(ui, &cache.content);
+                                        // Pass the word wrap state to the rendering function
+                                        preview::render_preview_content(
+                                            ui,
+                                            &cache.content,
+                                            app.preview_word_wrap,
+                                        );
                                     } else {
                                         ui.horizontal(|ui| {
                                             ui.spinner();
@@ -70,7 +92,6 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
                                     }
                                 }
                                 None => {
-                                    // MODIFIED: Changed from Err(_)
                                     ui.horizontal(|ui| {
                                         ui.spinner();
                                         ui.label("Generating preview...");

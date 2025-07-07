@@ -59,11 +59,16 @@ impl CodebaseApp {
             let cfg = self.config.clone();
             let ss = self.syntax_set;
             let ts = self.theme_set;
-            let tx = self.preview_sender.as_ref().expect("Preview sender missing").clone();
+            let tx = self
+                .preview_sender
+                .as_ref()
+                .expect("Preview sender missing")
+                .clone();
             let ctx_clone = ctx.clone();
 
             rayon::spawn_fifo(move || {
-                let cache_entry = preview::generate_preview(&cfg, ss, ts, &path, node_id, &ctx_clone);
+                let cache_entry =
+                    preview::generate_preview(&cfg, ss, ts, &path, node_id, &ctx_clone);
                 if tx.send((node_id, cache_entry)).is_err() {
                     log::warn!("Failed to send preview result: Channel closed.");
                 }
@@ -122,7 +127,10 @@ impl CodebaseApp {
 
     /// Recalculates the check state for all nodes in a subtree.
     pub(super) fn recalculate_all_parent_states(&mut self, node_id: FileId) {
-        let children = self.nodes.get(node_id).map_or(Vec::new(), |n| n.children.clone());
+        let children = self
+            .nodes
+            .get(node_id)
+            .map_or(Vec::new(), |n| n.children.clone());
         for child_id in children {
             self.recalculate_all_parent_states(child_id);
         }
@@ -138,7 +146,9 @@ impl CodebaseApp {
 
     /// Finds the `FileId` of the parent node containing `child_id`.
     pub(super) fn find_parent_id(&self, child_id: FileId) -> Option<FileId> {
-        self.nodes.iter().position(|node| node.children.contains(&child_id))
+        self.nodes
+            .iter()
+            .position(|node| node.children.contains(&child_id))
     }
 
     /// Calculates the correct `Check` state for a parent node based on its children's states.

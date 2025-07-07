@@ -3,11 +3,11 @@
 use super::{state::CodebaseApp, AppAction};
 use crate::{
     external,
+    fs::scanner,
     model::Check,
     report::{self, ReportOptions},
     selection,
     task::TaskMessage,
-    fs::scanner,
 };
 use arboard::Clipboard;
 use std::{fs as std_fs, path::PathBuf, sync::atomic::Ordering, thread};
@@ -60,7 +60,13 @@ impl CodebaseApp {
         self.preview_cache = None;
         self.orphaned_children.clear();
         self.path_to_id_map.clear();
-        self.status_message = format!("Scanning {}...", path.file_name().map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().to_string()));
+        self.status_message = format!(
+            "Scanning {}...",
+            path.file_name().map_or_else(
+                || path.display().to_string(),
+                |n| n.to_string_lossy().to_string()
+            )
+        );
         self.is_scanning = true;
         let (sender, receiver) = crossbeam_channel::unbounded();
         self.scan_receiver = Some(receiver);
@@ -85,7 +91,10 @@ impl CodebaseApp {
                 Check::Unchecked => Check::Checked,
             }
         } else {
-            log::warn!("Attempted to toggle check state for invalid node ID: {}", node_id);
+            log::warn!(
+                "Attempted to toggle check state for invalid node ID: {}",
+                node_id
+            );
             return;
         };
         self.set_node_state_recursive(node_id, new_state);
@@ -100,7 +109,10 @@ impl CodebaseApp {
                 log::trace!("Toggled expand state for node {}", node_id);
             }
         } else {
-            log::warn!("Attempted to toggle expand state for invalid node ID: {}", node_id);
+            log::warn!(
+                "Attempted to toggle expand state for invalid node ID: {}",
+                node_id
+            );
         }
     }
 
@@ -137,7 +149,9 @@ impl CodebaseApp {
 
     fn perform_select_all_children(&mut self, node_id: crate::model::FileId) {
         if let Some(node) = self.nodes.get(node_id) {
-            if !node.is_dir() { return; }
+            if !node.is_dir() {
+                return;
+            }
             let children = node.children.clone();
             for child_id in children {
                 self.set_node_state_recursive(child_id, Check::Checked);
@@ -149,7 +163,9 @@ impl CodebaseApp {
 
     fn perform_deselect_all_children(&mut self, node_id: crate::model::FileId) {
         if let Some(node) = self.nodes.get(node_id) {
-            if !node.is_dir() { return; }
+            if !node.is_dir() {
+                return;
+            }
             let children = node.children.clone();
             for child_id in children {
                 self.set_node_state_recursive(child_id, Check::Unchecked);
@@ -166,7 +182,11 @@ impl CodebaseApp {
             if let Err(e) = external::open_path_in_external_app(path) {
                 log::error!("Failed to open path externally: {}", e);
                 self.status_message = format!("Error opening path: {}", e);
-                rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("Open Error").set_description(format!("Could not open '{}':\n{}", path.display(), e)).show();
+                rfd::MessageDialog::new()
+                    .set_level(rfd::MessageLevel::Error)
+                    .set_title("Open Error")
+                    .set_description(format!("Could not open '{}':\n{}", path.display(), e))
+                    .show();
             }
         } else {
             log::warn!("Attempted to open invalid node ID externally: {}", node_id);
@@ -179,14 +199,36 @@ impl CodebaseApp {
             log::warn!("Save selection attempted with no directory open.");
             return;
         }
-        let default_name = format!("{}_selection.json", self.root_path.as_ref().unwrap().file_name().map_or("codebase", |n| n.to_str().unwrap_or("codebase")));
-        if let Some(save_path) = rfd::FileDialog::new().add_filter("JSON Files", &["json"]).set_file_name(&default_name).save_file() {
-            match selection::save_selection_to_file(&self.nodes, self.root_id, self.root_path.as_ref().unwrap(), &save_path) {
-                Ok(_) => self.status_message = format!("Selection saved to {}", save_path.display()),
+        let default_name = format!(
+            "{}_selection.json",
+            self.root_path
+                .as_ref()
+                .unwrap()
+                .file_name()
+                .map_or("codebase", |n| n.to_str().unwrap_or("codebase"))
+        );
+        if let Some(save_path) = rfd::FileDialog::new()
+            .add_filter("JSON Files", &["json"])
+            .set_file_name(&default_name)
+            .save_file()
+        {
+            match selection::save_selection_to_file(
+                &self.nodes,
+                self.root_id,
+                self.root_path.as_ref().unwrap(),
+                &save_path,
+            ) {
+                Ok(_) => {
+                    self.status_message = format!("Selection saved to {}", save_path.display())
+                }
                 Err(e) => {
                     log::error!("Failed to save selection: {}", e);
                     self.status_message = format!("Error saving selection: {}", e);
-                    rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("Save Selection Failed").set_description(format!("Could not save selection:\n{}", e)).show();
+                    rfd::MessageDialog::new()
+                        .set_level(rfd::MessageLevel::Error)
+                        .set_title("Save Selection Failed")
+                        .set_description(format!("Could not save selection:\n{}", e))
+                        .show();
                 }
             }
         } else {
@@ -200,16 +242,27 @@ impl CodebaseApp {
             log::warn!("Load selection attempted with no directory open.");
             return;
         }
-        if let Some(load_path) = rfd::FileDialog::new().add_filter("JSON Files", &["json"]).pick_file() {
+        if let Some(load_path) = rfd::FileDialog::new()
+            .add_filter("JSON Files", &["json"])
+            .pick_file()
+        {
             match selection::load_selection_from_file(&mut self.nodes, self.root_id, &load_path) {
                 Ok(saved_root_path_str) => {
                     let current_root_str = self.root_path.as_ref().unwrap().display().to_string();
                     if saved_root_path_str != current_root_str {
-                        log::warn!("Loaded selection for different root ('{}') than current ('{}').", saved_root_path_str, current_root_str);
-                        self.status_message = format!("Warning: Loaded selection for different root: {}", saved_root_path_str);
+                        log::warn!(
+                            "Loaded selection for different root ('{}') than current ('{}').",
+                            saved_root_path_str,
+                            current_root_str
+                        );
+                        self.status_message = format!(
+                            "Warning: Loaded selection for different root: {}",
+                            saved_root_path_str
+                        );
                         rfd::MessageDialog::new().set_level(rfd::MessageLevel::Warning).set_title("Load Selection Warning").set_description(format!("The loaded selection file was created for a different directory:\n\n{}\n\nSelection has been applied based on matching relative paths.", saved_root_path_str)).show();
                     } else {
-                        self.status_message = format!("Selection loaded from {}", load_path.display());
+                        self.status_message =
+                            format!("Selection loaded from {}", load_path.display());
                     }
                     if let Some(root_id) = self.root_id {
                         self.recalculate_all_parent_states(root_id);
@@ -218,7 +271,11 @@ impl CodebaseApp {
                 Err(e) => {
                     log::error!("Failed to load selection: {}", e);
                     self.status_message = format!("Error loading selection: {}", e);
-                    rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("Load Selection Failed").set_description(format!("Could not load selection:\n{}", e)).show();
+                    rfd::MessageDialog::new()
+                        .set_level(rfd::MessageLevel::Error)
+                        .set_title("Load Selection Failed")
+                        .set_description(format!("Could not load selection:\n{}", e))
+                        .show();
                 }
             }
         } else {
@@ -238,8 +295,23 @@ impl CodebaseApp {
             return;
         }
         let default_ext = options.format.extension();
-        let default_name = format!("{}_report.{}", self.root_path.as_ref().unwrap().file_name().map_or("codebase", |n| n.to_str().unwrap_or("codebase")), default_ext);
-        if let Some(save_path) = rfd::FileDialog::new().add_filter(format!("{:?} Report", options.format).as_str(), &[default_ext]).set_file_name(&default_name).save_file() {
+        let default_name = format!(
+            "{}_report.{}",
+            self.root_path
+                .as_ref()
+                .unwrap()
+                .file_name()
+                .map_or("codebase", |n| n.to_str().unwrap_or("codebase")),
+            default_ext
+        );
+        if let Some(save_path) = rfd::FileDialog::new()
+            .add_filter(
+                format!("{:?} Report", options.format).as_str(),
+                &[default_ext],
+            )
+            .set_file_name(&default_name)
+            .save_file()
+        {
             self.status_message = "Generating report in background...".to_string();
             self.is_generating_report = true;
             let report_data_result = report::collect_report_data(self, &options);
@@ -247,34 +319,41 @@ impl CodebaseApp {
             let report_options = options.clone();
             let handle = thread::Builder::new()
                 .name("report_generator".to_string())
-                .spawn(move || {
-                    match report_data_result {
-                        Ok(data) => {
-                            let _ = task_sender.send(TaskMessage::ReportProgress("Formatting report...".to_string()));
-                            match report::format_report_content(&data, &report_options) {
-                                Ok(report_content) => {
-                                    let _ = task_sender.send(TaskMessage::ReportProgress(format!("Saving report to {}...", save_path.display())));
-                                    match std_fs::write(&save_path, report_content) {
-                                        Ok(_) => { let _ = task_sender.send(TaskMessage::ReportFinished(Ok(save_path))); }
-                                        Err(e) => {
-                                            let err_msg = format!("Failed to write report file: {}", e);
-                                            log::error!("{}", err_msg);
-                                            let _ = task_sender.send(TaskMessage::ReportFinished(Err(err_msg)));
-                                        }
+                .spawn(move || match report_data_result {
+                    Ok(data) => {
+                        let _ = task_sender.send(TaskMessage::ReportProgress(
+                            "Formatting report...".to_string(),
+                        ));
+                        match report::format_report_content(&data, &report_options) {
+                            Ok(report_content) => {
+                                let _ = task_sender.send(TaskMessage::ReportProgress(format!(
+                                    "Saving report to {}...",
+                                    save_path.display()
+                                )));
+                                match std_fs::write(&save_path, report_content) {
+                                    Ok(_) => {
+                                        let _ = task_sender
+                                            .send(TaskMessage::ReportFinished(Ok(save_path)));
+                                    }
+                                    Err(e) => {
+                                        let err_msg = format!("Failed to write report file: {}", e);
+                                        log::error!("{}", err_msg);
+                                        let _ = task_sender
+                                            .send(TaskMessage::ReportFinished(Err(err_msg)));
                                     }
                                 }
-                                Err(e) => {
-                                    let err_msg = format!("Failed to format report content: {}", e);
-                                    log::error!("{}", err_msg);
-                                    let _ = task_sender.send(TaskMessage::ReportFinished(Err(err_msg)));
-                                }
+                            }
+                            Err(e) => {
+                                let err_msg = format!("Failed to format report content: {}", e);
+                                log::error!("{}", err_msg);
+                                let _ = task_sender.send(TaskMessage::ReportFinished(Err(err_msg)));
                             }
                         }
-                        Err(e) => {
-                            let err_msg = format!("Failed to collect report data: {}", e);
-                            log::error!("{}", err_msg);
-                            let _ = task_sender.send(TaskMessage::ReportFinished(Err(err_msg)));
-                        }
+                    }
+                    Err(e) => {
+                        let err_msg = format!("Failed to collect report data: {}", e);
+                        log::error!("{}", err_msg);
+                        let _ = task_sender.send(TaskMessage::ReportFinished(Err(err_msg)));
                     }
                 })
                 .expect("Failed to spawn report generator thread");
@@ -301,7 +380,11 @@ impl CodebaseApp {
                     if let Err(e) = clipboard.set_text(content) {
                         log::error!("Failed to copy report to clipboard: {}", e);
                         self.status_message = format!("Error copying report: {}", e);
-                        rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("Copy Report Failed").set_description(format!("Could not copy report:\n{}", e)).show();
+                        rfd::MessageDialog::new()
+                            .set_level(rfd::MessageLevel::Error)
+                            .set_title("Copy Report Failed")
+                            .set_description(format!("Could not copy report:\n{}", e))
+                            .show();
                     } else {
                         self.status_message = "Report copied to clipboard.".to_string();
                     }
@@ -309,13 +392,21 @@ impl CodebaseApp {
                 Err(e) => {
                     log::error!("Failed to access clipboard: {}", e);
                     self.status_message = format!("Clipboard error: {}", e);
-                    rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("Clipboard Error").set_description(format!("Could not access clipboard:\n{}", e)).show();
+                    rfd::MessageDialog::new()
+                        .set_level(rfd::MessageLevel::Error)
+                        .set_title("Clipboard Error")
+                        .set_description(format!("Could not access clipboard:\n{}", e))
+                        .show();
                 }
             },
             Err(e) => {
                 log::error!("Failed to generate report for clipboard: {}", e);
                 self.status_message = format!("Error generating report: {}", e);
-                rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("Report Generation Failed").set_description(format!("Could not generate report:\n{}", e)).show();
+                rfd::MessageDialog::new()
+                    .set_level(rfd::MessageLevel::Error)
+                    .set_title("Report Generation Failed")
+                    .set_description(format!("Could not generate report:\n{}", e))
+                    .show();
             }
         }
     }

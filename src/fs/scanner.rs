@@ -1,10 +1,6 @@
 //! Background directory scanning implementation using the `ignore` crate.
 
-use crate::{
-    fs::FileInfo,
-    model::FileNode,
-    task::ScanMessage,
-};
+use crate::{fs::FileInfo, model::FileNode, task::ScanMessage};
 use crossbeam_channel::select;
 use crossbeam_channel::Sender;
 use ignore::{WalkBuilder, WalkState};
@@ -31,7 +27,11 @@ pub fn scan(
     let cancel_signal_clone = cancel_signal.clone();
     let root_clone = root.clone();
 
-    log::info!("Spawning scan worker thread for path: '{}', show_hidden: {}", root_clone.display(), show_hidden);
+    log::info!(
+        "Spawning scan worker thread for path: '{}', show_hidden: {}",
+        root_clone.display(),
+        show_hidden
+    );
 
     let handle = thread::Builder::new() // MODIFIED
         .name("scan_worker".to_string())

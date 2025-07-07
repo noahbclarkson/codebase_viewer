@@ -1,12 +1,12 @@
 //! Handles messages received from background tasks (scanner, report generator).
 
 use super::state::CodebaseApp;
+use crate::external;
 use crate::{
     model::FileNode,
     task::{ScanMessage, TaskMessage},
 };
 use rfd::MessageDialogResult;
-use crate::external;
 
 impl CodebaseApp {
     /// Central place to handle all background messages.
@@ -46,27 +46,44 @@ impl CodebaseApp {
                         self.scan_receiver = None;
                         if let Some(stats) = self.scan_stats.as_mut() {
                             stats.finalize();
-                            self.status_message = format!("Scan complete: {} files, {} dirs, {}", stats.total_files, stats.total_dirs, stats.total_size_human());
+                            self.status_message = format!(
+                                "Scan complete: {} files, {} dirs, {}",
+                                stats.total_files,
+                                stats.total_dirs,
+                                stats.total_size_human()
+                            );
                         } else {
                             self.status_message = "Scan complete.".to_string();
                         }
                         if !self.orphaned_children.is_empty() {
-                            log::warn!("Scan finished with {} unresolved orphan parent path(s).", self.orphaned_children.len());
+                            log::warn!(
+                                "Scan finished with {} unresolved orphan parent path(s).",
+                                self.orphaned_children.len()
+                            );
                             for (parent, children) in &self.orphaned_children {
                                 log::warn!(" - Missing Parent: {}", parent.display());
                                 for (_, child_path) in children.iter().take(5) {
                                     log::warn!("   - Orphaned Child: {}", child_path.display());
                                 }
                                 if children.len() > 5 {
-                                    log::warn!("   - ...and {} more orphans for this parent", children.len() - 5);
+                                    log::warn!(
+                                        "   - ...and {} more orphans for this parent",
+                                        children.len() - 5
+                                    );
                                 }
                             }
                             self.orphaned_children.clear();
                         }
                         self.sort_nodes_recursively(self.root_id);
                         if let Some(stats) = &self.scan_stats {
-                            if self.config.auto_expand_limit > 0 && stats.total_files <= self.config.auto_expand_limit {
-                                log::info!("Auto-expanding nodes as total file count ({}) <= limit ({}).", stats.total_files, self.config.auto_expand_limit);
+                            if self.config.auto_expand_limit > 0
+                                && stats.total_files <= self.config.auto_expand_limit
+                            {
+                                log::info!(
+                                    "Auto-expanding nodes as total file count ({}) <= limit ({}).",
+                                    stats.total_files,
+                                    self.config.auto_expand_limit
+                                );
                                 if let Some(root_id) = self.root_id {
                                     if let Some(root_node) = self.nodes.get(root_id) {
                                         let children = root_node.children.clone();
@@ -95,20 +112,48 @@ impl CodebaseApp {
                         self.background_task = None;
                         match result {
                             Ok(save_path) => {
-                                self.status_message = format!("Report saved successfully to {}", save_path.display());
-                                log::info!("Report generated successfully to {}", save_path.display());
-                                if rfd::MessageDialog::new().set_level(rfd::MessageLevel::Info).set_title("Report Generated").set_description(format!("Report saved to:\n{}\n\nWould you like to open it?", save_path.display())).set_buttons(rfd::MessageButtons::YesNo).show() == MessageDialogResult::Yes {
-                                    if let Err(e) = external::open_path_in_external_app(&save_path) {
+                                self.status_message =
+                                    format!("Report saved successfully to {}", save_path.display());
+                                log::info!(
+                                    "Report generated successfully to {}",
+                                    save_path.display()
+                                );
+                                if rfd::MessageDialog::new()
+                                    .set_level(rfd::MessageLevel::Info)
+                                    .set_title("Report Generated")
+                                    .set_description(format!(
+                                        "Report saved to:\n{}\n\nWould you like to open it?",
+                                        save_path.display()
+                                    ))
+                                    .set_buttons(rfd::MessageButtons::YesNo)
+                                    .show()
+                                    == MessageDialogResult::Yes
+                                {
+                                    if let Err(e) = external::open_path_in_external_app(&save_path)
+                                    {
                                         log::error!("Failed to open generated report file: {}", e);
-                                        self.status_message = format!("Error opening report: {}", e);
-                                        rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("Open Report Error").set_description(format!("Could not open report file:\n{}", e)).show();
+                                        self.status_message =
+                                            format!("Error opening report: {}", e);
+                                        rfd::MessageDialog::new()
+                                            .set_level(rfd::MessageLevel::Error)
+                                            .set_title("Open Report Error")
+                                            .set_description(format!(
+                                                "Could not open report file:\n{}",
+                                                e
+                                            ))
+                                            .show();
                                     }
                                 }
                             }
                             Err(err_msg) => {
                                 log::error!("Report generation failed: {}", err_msg);
-                                self.status_message = format!("Error generating report: {}", err_msg);
-                                rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("Report Generation Failed").set_description(&err_msg).show();
+                                self.status_message =
+                                    format!("Error generating report: {}", err_msg);
+                                rfd::MessageDialog::new()
+                                    .set_level(rfd::MessageLevel::Error)
+                                    .set_title("Report Generation Failed")
+                                    .set_description(&err_msg)
+                                    .show();
                             }
                         }
                     }
@@ -122,9 +167,15 @@ impl CodebaseApp {
             for (id, cache_entry) in rx.try_iter() {
                 if self.selected_node_id == Some(id) {
                     log::trace!("Received preview for selected node {}", id);
-                    self.preview_cache = Some(std::sync::Arc::new(parking_lot::Mutex::new(cache_entry))); // MODIFIED
+                    self.preview_cache =
+                        Some(std::sync::Arc::new(parking_lot::Mutex::new(cache_entry)));
+                // MODIFIED
                 } else {
-                    log::trace!("Received preview for node {}, but node {:?} is selected. Ignoring.", id, self.selected_node_id);
+                    log::trace!(
+                        "Received preview for node {}, but node {:?} is selected. Ignoring.",
+                        id,
+                        self.selected_node_id
+                    );
                 }
             }
         }
@@ -141,7 +192,11 @@ impl CodebaseApp {
             if let Some(root_node) = self.nodes.get_mut(node_id) {
                 root_node.is_expanded = true;
             }
-            log::debug!("Root node added: ID {}, Path: {}", node_id, node_path.display());
+            log::debug!(
+                "Root node added: ID {}, Path: {}",
+                node_id,
+                node_path.display()
+            );
         }
         let mut parent_found = false;
         if let Some(parent_path) = node_path.parent().map(|p| p.to_path_buf()) {
@@ -150,7 +205,12 @@ impl CodebaseApp {
                     parent_node.children.push(node_id);
                     parent_found = true;
                     if let Some(orphans) = self.orphaned_children.remove(&node_path) {
-                        log::debug!("Node {} ({}) resolved {} orphans.", node_id, node_path.display(), orphans.len());
+                        log::debug!(
+                            "Node {} ({}) resolved {} orphans.",
+                            node_id,
+                            node_path.display(),
+                            orphans.len()
+                        );
                         if let Some(new_parent_node) = self.nodes.get_mut(node_id) {
                             for (orphan_id, _) in orphans {
                                 new_parent_node.children.push(orphan_id);
@@ -162,10 +222,20 @@ impl CodebaseApp {
         }
         if !parent_found && self.root_id != Some(node_id) {
             if let Some(parent_path) = node_path.parent() {
-                log::trace!("Orphaned node {} (parent {} not found yet). Storing.", node_path.display(), parent_path.display());
-                self.orphaned_children.entry(parent_path.to_path_buf()).or_default().push((node_id, node_path.clone()));
+                log::trace!(
+                    "Orphaned node {} (parent {} not found yet). Storing.",
+                    node_path.display(),
+                    parent_path.display()
+                );
+                self.orphaned_children
+                    .entry(parent_path.to_path_buf())
+                    .or_default()
+                    .push((node_id, node_path.clone()));
             } else if self.root_id.is_none() {
-                log::error!("Node {} has no parent but is not root, and root not yet found.", node_path.display());
+                log::error!(
+                    "Node {} has no parent but is not root, and root not yet found.",
+                    node_path.display()
+                );
             }
         }
         if let Some(stats) = self.scan_stats.as_mut() {

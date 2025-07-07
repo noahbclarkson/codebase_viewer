@@ -127,28 +127,44 @@ pub fn draw_tree_panel(app: &mut CodebaseApp, ui: &mut Ui) {
             let button_size = egui::vec2(20.0, 20.0);
 
             if ui
-                .add_enabled(tree_loaded, Button::new(ARROW_ELBOW_DOWN_RIGHT).small().min_size(button_size))
+                .add_enabled(
+                    tree_loaded,
+                    Button::new(ARROW_ELBOW_DOWN_RIGHT)
+                        .small()
+                        .min_size(button_size),
+                )
                 .on_hover_text("Expand All")
                 .clicked()
             {
                 app.queue_action(AppAction::ExpandAllNodes);
             }
             if ui
-                .add_enabled(tree_loaded, Button::new(ARROW_ELBOW_UP_LEFT).small().min_size(button_size))
+                .add_enabled(
+                    tree_loaded,
+                    Button::new(ARROW_ELBOW_UP_LEFT)
+                        .small()
+                        .min_size(button_size),
+                )
                 .on_hover_text("Collapse All")
                 .clicked()
             {
                 app.queue_action(AppAction::CollapseAllNodes);
             }
             if ui
-                .add_enabled(tree_loaded, Button::new(CHECK_SQUARE).small().min_size(button_size))
+                .add_enabled(
+                    tree_loaded,
+                    Button::new(CHECK_SQUARE).small().min_size(button_size),
+                )
                 .on_hover_text("Select All")
                 .clicked()
             {
                 app.queue_action(AppAction::SelectAllNodes);
             }
             if ui
-                .add_enabled(tree_loaded, Button::new(SQUARE).small().min_size(button_size))
+                .add_enabled(
+                    tree_loaded,
+                    Button::new(SQUARE).small().min_size(button_size),
+                )
                 .on_hover_text("Deselect All")
                 .clicked()
             {
@@ -174,7 +190,10 @@ pub fn draw_tree_panel(app: &mut CodebaseApp, ui: &mut Ui) {
             }
 
             if !app.search_text.is_empty()
-                && ui.add(Button::new(X_CIRCLE).small().frame(false)).on_hover_text("Clear search").clicked()
+                && ui
+                    .add(Button::new(X_CIRCLE).small().frame(false))
+                    .on_hover_text("Clear search")
+                    .clicked()
             {
                 app.search_text.clear();
             }
@@ -252,7 +271,11 @@ fn draw_single_row(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId, depth: u
 
     // --- Icon Selection ---
     let icon = if is_dir {
-        if is_expanded { FOLDER_OPEN } else { FOLDER }
+        if is_expanded {
+            FOLDER_OPEN
+        } else {
+            FOLDER
+        }
     } else {
         ICONS.get(extension).copied().unwrap_or(FILE)
     };
@@ -282,7 +305,10 @@ fn draw_single_row(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId, depth: u
         // 2. Expand/Collapse Toggle
         if is_dir {
             let toggle_icon = if is_expanded { CARET_DOWN } else { CARET_RIGHT };
-            if ui.selectable_label(false, RichText::new(toggle_icon).size(14.0)).clicked() {
+            if ui
+                .selectable_label(false, RichText::new(toggle_icon).size(14.0))
+                .clicked()
+            {
                 app.queue_action(AppAction::ToggleExpandState(node_id));
             }
         } else {
@@ -292,8 +318,14 @@ fn draw_single_row(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId, depth: u
         // 3. Icon and Name Label
         let label_text = format!("{} {}", icon, name);
         let is_selected = app.selected_node_id == Some(node_id);
-        let display_text = if !app.search_text.is_empty() && name.to_lowercase().contains(&app.search_text.to_lowercase()) {
-            RichText::new(label_text).strong().color(ui.visuals().hyperlink_color)
+        let display_text = if !app.search_text.is_empty()
+            && name
+                .to_lowercase()
+                .contains(&app.search_text.to_lowercase())
+        {
+            RichText::new(label_text)
+                .strong()
+                .color(ui.visuals().hyperlink_color)
         } else {
             RichText::new(label_text)
         };
@@ -310,17 +342,18 @@ fn draw_single_row(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId, depth: u
         label_response.context_menu(|ui| {
             let node_id_clone = node_id;
             // Extract node data first to avoid borrow conflicts
-            let (node_name, node_path, is_expanded, is_directory) = if let Some(ctx_node) = app.nodes.get(node_id) {
-                (
-                    ctx_node.name().to_string(),
-                    ctx_node.path().display().to_string(),
-                    ctx_node.is_expanded,
-                    ctx_node.is_dir(),
-                )
-            } else {
-                ui.label(RichText::new("Error: Node data unavailable").color(Color32::RED));
-                return;
-            };
+            let (node_name, node_path, is_expanded, is_directory) =
+                if let Some(ctx_node) = app.nodes.get(node_id) {
+                    (
+                        ctx_node.name().to_string(),
+                        ctx_node.path().display().to_string(),
+                        ctx_node.is_expanded,
+                        ctx_node.is_dir(),
+                    )
+                } else {
+                    ui.label(RichText::new("Error: Node data unavailable").color(Color32::RED));
+                    return;
+                };
 
             ui.label(RichText::new(node_name).strong());
             ui.label(RichText::new(node_path).small().weak());
@@ -332,7 +365,14 @@ fn draw_single_row(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId, depth: u
             }
 
             if is_directory {
-                if ui.button(if is_expanded { "Collapse Node" } else { "Expand Node" }).clicked() {
+                if ui
+                    .button(if is_expanded {
+                        "Collapse Node"
+                    } else {
+                        "Expand Node"
+                    })
+                    .clicked()
+                {
                     app.queue_action(AppAction::ToggleExpandState(node_id_clone));
                     ui.close_menu();
                 }
@@ -370,9 +410,10 @@ fn check_search_match_recursive(app: &CodebaseApp, node_id: FileId, lower_search
             return true;
         }
         if node.is_dir() {
-            return node.children.iter().any(|&child_id| {
-                check_search_match_recursive(app, child_id, lower_search)
-            });
+            return node
+                .children
+                .iter()
+                .any(|&child_id| check_search_match_recursive(app, child_id, lower_search));
         }
     }
     false

@@ -135,7 +135,10 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
             }
             if hidden_changed {
                 if let Some(root) = app.root_path.clone() {
-                    log::info!("Hidden file setting changed, triggering rescan of '{}'", root.display());
+                    log::info!(
+                        "Hidden file setting changed, triggering rescan of '{}'",
+                        root.display()
+                    );
                     app.queue_action(AppAction::StartScan(root));
                 }
             }
@@ -149,7 +152,11 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
                     app.status_message = format!("Error saving preferences: {}", e);
                     log::error!("Failed to save preferences: {}", e);
                     app.prefs_draft = Some(app.config.clone());
-                    rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error).set_title("Save Preferences Failed").set_description(format!("Could not save preferences:\n{}", e)).show();
+                    rfd::MessageDialog::new()
+                        .set_level(rfd::MessageLevel::Error)
+                        .set_title("Save Preferences Failed")
+                        .set_description(format!("Could not save preferences:\n{}", e))
+                        .show();
                 }
             }
         }
@@ -188,9 +195,21 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
                         egui::ComboBox::from_id_salt("report_format_combo")
                             .selected_text(format!("{:?}", draft.format))
                             .show_ui(ui, |ui| {
-                                ui.selectable_value(&mut draft.format, ReportFormat::Markdown, "Markdown (.md)");
-                                ui.selectable_value(&mut draft.format, ReportFormat::Html, "HTML (.html)");
-                                ui.selectable_value(&mut draft.format, ReportFormat::Text, "Text (.txt)");
+                                ui.selectable_value(
+                                    &mut draft.format,
+                                    ReportFormat::Markdown,
+                                    "Markdown (.md)",
+                                );
+                                ui.selectable_value(
+                                    &mut draft.format,
+                                    ReportFormat::Html,
+                                    "HTML (.html)",
+                                );
+                                ui.selectable_value(
+                                    &mut draft.format,
+                                    ReportFormat::Text,
+                                    "Text (.txt)",
+                                );
                             });
                         ui.end_row();
 
@@ -209,10 +228,24 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
                         if ui.button("Cancel").clicked() {
                             cancel_clicked = true;
                         }
-                        if ui.add_enabled(!app.is_scanning && !app.is_generating_report, Button::new("Generate")).on_hover_text("Generate the report file").clicked() {
+                        if ui
+                            .add_enabled(
+                                !app.is_scanning && !app.is_generating_report,
+                                Button::new("Generate"),
+                            )
+                            .on_hover_text("Generate the report file")
+                            .clicked()
+                        {
                             generate_clicked = true;
                         }
-                        if ui.add_enabled(!app.is_scanning && !app.is_generating_report, Button::new("Copy to Clipboard")).on_hover_text("Copy the report to the clipboard").clicked() {
+                        if ui
+                            .add_enabled(
+                                !app.is_scanning && !app.is_generating_report,
+                                Button::new("Copy to Clipboard"),
+                            )
+                            .on_hover_text("Copy the report to the clipboard")
+                            .clicked()
+                        {
                             copy_clicked = true;
                         }
                         if app.is_scanning || app.is_generating_report {
@@ -271,7 +304,10 @@ pub fn draw_about_window(app: &mut CodebaseApp, ctx: &Context) {
                 ui.separator();
                 ui.add_space(10.0);
                 ui.label("© 2024-2025 Noah B. Clarkson");
-                ui.hyperlink_to("View Source on GitHub", "https://github.com/noahbclarkson/codebase_viewer");
+                ui.hyperlink_to(
+                    "View Source on GitHub",
+                    "https://github.com/noahbclarkson/codebase_viewer",
+                );
                 ui.add_space(15.0);
                 if ui.button("Close").clicked() {
                     app.show_about_window = false;
@@ -292,17 +328,53 @@ pub fn draw_shortcuts_window(app: &mut CodebaseApp, ctx: &Context) {
     let mut is_open = app.show_shortcuts_window;
 
     let shortcuts = [
-        ("Open Directory", egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::O)),
-        ("Save Selection", egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::S)),
-        ("Load Selection", egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::L)),
-        ("Generate Report", egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::G)),
-        ("Select All (Tree)", egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::A)),
-        ("Deselect All (Tree)", egui::KeyboardShortcut::new(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::A)),
-        ("Find in Tree", egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::F)),
-        ("Expand All", egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::OpenBracket)),
-        ("Collapse All", egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::CloseBracket)),
-        ("Toggle Preview Panel", egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::F9)),
-        ("Preferences", egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::Comma)),
+        (
+            "Open Directory",
+            egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::O),
+        ),
+        (
+            "Save Selection",
+            egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::S),
+        ),
+        (
+            "Load Selection",
+            egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::L),
+        ),
+        (
+            "Generate Report",
+            egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::G),
+        ),
+        (
+            "Select All (Tree)",
+            egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::A),
+        ),
+        (
+            "Deselect All (Tree)",
+            egui::KeyboardShortcut::new(
+                egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT),
+                egui::Key::A,
+            ),
+        ),
+        (
+            "Find in Tree",
+            egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::F),
+        ),
+        (
+            "Expand All",
+            egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::OpenBracket),
+        ),
+        (
+            "Collapse All",
+            egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::CloseBracket),
+        ),
+        (
+            "Toggle Preview Panel",
+            egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::F9),
+        ),
+        (
+            "Preferences",
+            egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::Comma),
+        ),
     ];
 
     Window::new("Keyboard Shortcuts")
@@ -328,7 +400,17 @@ pub fn draw_shortcuts_window(app: &mut CodebaseApp, ctx: &Context) {
                         }
 
                         ui.label("Exit Application");
-                        ui.label(format!("{} / {}", ctx.format_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::ALT, egui::Key::F4)), ctx.format_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::Q))));
+                        ui.label(format!(
+                            "{} / {}",
+                            ctx.format_shortcut(&egui::KeyboardShortcut::new(
+                                egui::Modifiers::ALT,
+                                egui::Key::F4
+                            )),
+                            ctx.format_shortcut(&egui::KeyboardShortcut::new(
+                                egui::Modifiers::COMMAND,
+                                egui::Key::Q
+                            ))
+                        ));
                         ui.end_row();
                     });
                 ui.add_space(5.0);

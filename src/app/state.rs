@@ -9,7 +9,7 @@ use crate::{
     task::{ScanMessage, TaskMessage},
 };
 use crossbeam_channel::{Receiver, Sender};
-use parking_lot::Mutex; // MODIFIED: Use parking_lot::Mutex
+use parking_lot::Mutex;
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -39,8 +39,9 @@ pub struct CodebaseApp {
     pub(crate) selected_node_id: Option<FileId>,
     pub(crate) search_text: String,
     pub(crate) status_message: String,
-    pub(crate) preview_cache: Option<Arc<Mutex<PreviewCache>>>, // MODIFIED
+    pub(crate) preview_cache: Option<Arc<Mutex<PreviewCache>>>,
     pub(crate) show_preview_panel: bool,
+    pub(crate) preview_word_wrap: bool, // MODIFIED: Added word wrap state
     pub(crate) show_preferences_window: bool,
     pub(crate) show_report_options_window: bool,
     pub(crate) show_about_window: bool,
@@ -96,9 +97,11 @@ impl CodebaseApp {
             last_report_options,
             selected_node_id: None,
             search_text: String::new(),
-            status_message: "Ready. Select a directory to open (File > Open Directory).".to_string(),
+            status_message: "Ready. Select a directory to open (File > Open Directory)."
+                .to_string(),
             preview_cache: None,
             show_preview_panel: true,
+            preview_word_wrap: false, // MODIFIED: Initialize word wrap to false
             show_preferences_window: false,
             show_report_options_window: false,
             show_about_window: false,
