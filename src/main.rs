@@ -4,7 +4,7 @@
 //! It sets up logging, initializes the egui framework (eframe), loads assets,
 //! and runs the main application loop (`CodebaseApp`).
 
-use crate::app::CodebaseApp;
+use crate::app::state::CodebaseApp; // MODIFIED: Point to the new location
 use tracing_subscriber::EnvFilter;
 
 // Make modules public within the crate for app.rs and others to use them easily
