@@ -87,7 +87,7 @@ egui-phosphor = "0.9"
 egui_material_icons = "0.3.0"
 arboard = "3.6"
 parking_lot = "0.12"
-tokei = "12.1.2" # ADDED: For Lines of Code analysis
+tokei = "12.1.2"
 
 [profile.release]
 codegen-units = 1
