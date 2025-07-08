@@ -25,7 +25,7 @@ pub fn draw_status_bar(app: &mut CodebaseApp, ctx: &Context) {
 
                         // File Counts (Selected / Total)
                         let (total_files, selected_files) = app.count_files(); // Use helper method
-                        ui.label(format!("{} / {}", selected_files, total_files))
+                        ui.label(format!("{selected_files} / {total_files}"))
                             .on_hover_text("Selected Files / Total Files");
                         ui.separator();
 

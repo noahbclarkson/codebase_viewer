@@ -94,7 +94,7 @@ fn scan_worker(
                                 }
                                 Err(e) => {
                                     let error_msg = format!("Failed to process entry '{}': {}", path.display(), e);
-                                    log::warn!("{}", error_msg);
+                                    log::warn!("{error_msg}");
                                     if node_tx.send(Err(error_msg)).is_err() {
                                         log::warn!("Local error send failed: Channel closed. Quitting walk.");
                                         return WalkState::Quit;
@@ -103,8 +103,8 @@ fn scan_worker(
                             }
                         }
                         Err(e) => {
-                            let error_msg = format!("Filesystem walk error: {}", e);
-                            log::error!("{}", error_msg);
+                            let error_msg = format!("Filesystem walk error: {e}");
+                            log::error!("{error_msg}");
                             if node_tx.send(Err(error_msg)).is_err() {
                                 log::warn!("Local walk error send failed: Channel closed. Quitting walk.");
                                 return WalkState::Quit;
@@ -143,7 +143,7 @@ fn scan_worker(
                                 }
                             }
                             Err(error_msg) => {
-                                log::warn!("Received error from walker: {}", error_msg);
+                                log::warn!("Received error from walker: {error_msg}");
                                 if ui_sender.send(ScanMessage::Error(error_msg)).is_err() {
                                     log::warn!("UI sender channel closed while sending error.");
                                     break;
@@ -176,7 +176,7 @@ fn scan_worker(
     }
 
     if let Err(e) = walker_thread.join() {
-        log::error!("Walker thread panicked: {:?}", e);
+        log::error!("Walker thread panicked: {e:?}");
         let _ = ui_sender.send(ScanMessage::Error("Walker thread panicked.".to_string()));
     } else {
         log::info!("Walker thread joined successfully.");

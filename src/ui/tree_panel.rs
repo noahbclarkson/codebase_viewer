@@ -316,7 +316,7 @@ fn draw_single_row(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId, depth: u
         }
 
         // 3. Icon and Name Label
-        let label_text = format!("{} {}", icon, name);
+        let label_text = format!("{icon} {name}");
         let is_selected = app.selected_node_id == Some(node_id);
         let display_text = if !app.search_text.is_empty()
             && name

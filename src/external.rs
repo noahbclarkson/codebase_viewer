@@ -24,7 +24,7 @@ pub fn open_path_in_external_app(path: &Path) -> anyhow::Result<()> {
         }
         Err(e) => {
             let err_msg = format!("Failed to open path '{}' externally: {}", path.display(), e);
-            log::error!("{}", err_msg);
+            log::error!("{err_msg}");
             // Return a user-friendly error message via anyhow
             Err(anyhow::anyhow!(
                 "Could not open '{}' with the default application. System error: {}",

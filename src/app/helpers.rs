@@ -10,7 +10,7 @@ use egui::{Context, Visuals};
 impl CodebaseApp {
     /// Sets the egui visual theme (light/dark) based on the configuration.
     pub fn set_egui_theme(ctx: &Context, theme_name: &str) {
-        log::info!("Setting application theme to: {}", theme_name);
+        log::info!("Setting application theme to: {theme_name}");
         match theme_name {
             "dark" => ctx.set_visuals(Visuals::dark()),
             "light" => ctx.set_visuals(Visuals::light()),
@@ -48,13 +48,13 @@ impl CodebaseApp {
                     };
 
                     if cache.node_id == node_id && theme_matches {
-                        log::trace!("Preview cache hit for node {}", node_id);
+                        log::trace!("Preview cache hit for node {node_id}");
                         return;
                     }
                 }
             }
 
-            log::trace!("Initiating preview load for node {}", node_id);
+            log::trace!("Initiating preview load for node {node_id}");
             let path = node.path().to_path_buf();
             let cfg = self.config.clone();
             let ss = self.syntax_set;
@@ -74,7 +74,7 @@ impl CodebaseApp {
                 }
             });
         } else {
-            log::warn!("Attempted to load preview for invalid node ID: {}", node_id);
+            log::warn!("Attempted to load preview for invalid node ID: {node_id}");
         }
     }
 

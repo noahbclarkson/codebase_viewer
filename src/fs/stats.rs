@@ -56,7 +56,7 @@ impl ScanStats {
         let extension_key = info
             .extension
             .as_deref()
-            .map_or_else(|| "(no extension)".to_string(), |ext| format!(".{}", ext));
+            .map_or_else(|| "(no extension)".to_string(), |ext| format!(".{ext}"));
         *self.file_types.entry(extension_key).or_insert(0) += 1;
 
         if let Some(loc_stats) = &info.loc_stats {

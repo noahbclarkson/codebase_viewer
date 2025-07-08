@@ -149,13 +149,13 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
                     app.show_preferences_window = false;
                 }
                 Err(e) => {
-                    app.status_message = format!("Error saving preferences: {}", e);
-                    log::error!("Failed to save preferences: {}", e);
+                    app.status_message = format!("Error saving preferences: {e}");
+                    log::error!("Failed to save preferences: {e}");
                     app.prefs_draft = Some(app.config.clone());
                     rfd::MessageDialog::new()
                         .set_level(rfd::MessageLevel::Error)
                         .set_title("Save Preferences Failed")
-                        .set_description(format!("Could not save preferences:\n{}", e))
+                        .set_description(format!("Could not save preferences:\n{e}"))
                         .show();
                 }
             }

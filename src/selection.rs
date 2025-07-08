@@ -63,7 +63,7 @@ pub fn save_selection_to_file(
         // Optionally save root state itself if needed:
         // selection_map.insert(".".to_string(), root_node.state);
     } else {
-        log::error!("Root node ID {} is invalid during save selection.", root_id);
+        log::error!("Root node ID {root_id} is invalid during save selection.");
         return Err(anyhow::anyhow!("Invalid root node ID during save."));
     }
 
@@ -187,7 +187,7 @@ pub fn load_selection_from_file(
         // If root state was saved with ".", map it:
         // path_to_id_map.insert(".".to_string(), root_id);
     } else {
-        log::error!("Root node ID {} is invalid during load selection.", root_id);
+        log::error!("Root node ID {root_id} is invalid during load selection.");
         return Err(anyhow::anyhow!("Invalid root node ID during load."));
     }
     log::debug!("Path map built with {} entries.", path_to_id_map.len());
@@ -206,16 +206,13 @@ pub fn load_selection_from_file(
             } else {
                 // This should not happen if path_to_id_map is correct
                 log::error!(
-                    "Mapped node ID {} not found in nodes vector for path '{}'.",
-                    node_id,
-                    relative_path_str
+                    "Mapped node ID {node_id} not found in nodes vector for path '{relative_path_str}'."
                 );
             }
         } else {
             // Path from the save file doesn't exist in the current tree
             log::trace!(
-                "Path '{}' from selection file not found in current tree.",
-                relative_path_str
+                "Path '{relative_path_str}' from selection file not found in current tree."
             );
             not_found_count += 1;
         }
@@ -223,11 +220,10 @@ pub fn load_selection_from_file(
 
     if not_found_count > 0 {
         log::warn!(
-            "{} paths from the selection file were not found in the current directory structure.",
-            not_found_count
+            "{not_found_count} paths from the selection file were not found in the current directory structure."
         );
     }
-    log::info!("Applied selection state to {} nodes.", applied_count);
+    log::info!("Applied selection state to {applied_count} nodes.");
 
     // IMPORTANT: After loading, the parent states (Partial/Checked/Unchecked) might be inconsistent.
     // The caller (`CodebaseApp::perform_load_selection`) is responsible for calling

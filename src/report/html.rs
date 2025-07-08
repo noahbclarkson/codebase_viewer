@@ -186,7 +186,7 @@ pub fn format_html(data: &ReportData) -> String {
         } else {
             "<em>(No files selected)</em>"
         };
-        html.push_str(&format!("  <p>{}</p>\n", message));
+        html.push_str(&format!("  <p>{message}</p>\n"));
     }
     html.push_str("</section>\n");
 

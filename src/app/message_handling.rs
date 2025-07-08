@@ -27,8 +27,8 @@ impl CodebaseApp {
                         }
                     }
                     ScanMessage::Error(err_msg) => {
-                        log::error!("Scan error reported: {}", err_msg);
-                        self.status_message = format!("Scan error: {}", err_msg);
+                        log::error!("Scan error reported: {err_msg}");
+                        self.status_message = format!("Scan error: {err_msg}");
                         if let Some(stats) = self.scan_stats.as_mut() {
                             stats.add_error(err_msg);
                         }
@@ -131,24 +131,21 @@ impl CodebaseApp {
                                 {
                                     if let Err(e) = external::open_path_in_external_app(&save_path)
                                     {
-                                        log::error!("Failed to open generated report file: {}", e);
-                                        self.status_message =
-                                            format!("Error opening report: {}", e);
+                                        log::error!("Failed to open generated report file: {e}");
+                                        self.status_message = format!("Error opening report: {e}");
                                         rfd::MessageDialog::new()
                                             .set_level(rfd::MessageLevel::Error)
                                             .set_title("Open Report Error")
                                             .set_description(format!(
-                                                "Could not open report file:\n{}",
-                                                e
+                                                "Could not open report file:\n{e}"
                                             ))
                                             .show();
                                     }
                                 }
                             }
                             Err(err_msg) => {
-                                log::error!("Report generation failed: {}", err_msg);
-                                self.status_message =
-                                    format!("Error generating report: {}", err_msg);
+                                log::error!("Report generation failed: {err_msg}");
+                                self.status_message = format!("Error generating report: {err_msg}");
                                 rfd::MessageDialog::new()
                                     .set_level(rfd::MessageLevel::Error)
                                     .set_title("Report Generation Failed")
@@ -166,7 +163,7 @@ impl CodebaseApp {
         if let Some(rx) = &self.preview_receiver {
             for (id, cache_entry) in rx.try_iter() {
                 if self.selected_node_id == Some(id) {
-                    log::trace!("Received preview for selected node {}", id);
+                    log::trace!("Received preview for selected node {id}");
                     self.preview_cache =
                         Some(std::sync::Arc::new(parking_lot::Mutex::new(cache_entry)));
                 // MODIFIED

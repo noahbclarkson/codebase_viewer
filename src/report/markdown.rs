@@ -88,7 +88,7 @@ pub fn format_markdown(data: &ReportData) -> String {
             let mut sorted_types: Vec<_> = stats.file_types.iter().collect();
             sorted_types.sort_by(|a, b| b.1.cmp(a.1));
             for (ext, count) in sorted_types.iter().take(20) {
-                md.push_str(&format!("- `{}`: {}\n", ext, count));
+                md.push_str(&format!("- `{ext}`: {count}\n"));
             }
             if sorted_types.len() > 20 {
                 md.push_str("- ... and more\n");
@@ -109,7 +109,7 @@ pub fn format_markdown(data: &ReportData) -> String {
             md.push_str("\n**Scan Errors:**\n\n");
             md.push_str("```log\n");
             for error in stats.errors.iter().take(10) {
-                md.push_str(&format!("- {}\n", error));
+                md.push_str(&format!("- {error}\n"));
             }
             if stats.errors.len() > 10 {
                 md.push_str("- ... and more errors truncated\n");
@@ -150,7 +150,7 @@ pub fn format_markdown(data: &ReportData) -> String {
                 .and_then(|s| s.to_str())
                 .unwrap_or("");
             let lang_hint = LANG_MAP.get(ext).copied().unwrap_or("text");
-            md.push_str(&format!("```{}\n", lang_hint));
+            md.push_str(&format!("```{lang_hint}\n"));
             match &detail.content {
                 Ok(content) => md.push_str(content.trim()),
                 Err(reason) => md.push_str(reason),

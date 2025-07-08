@@ -45,7 +45,7 @@ fn get_theme<'a>(theme_set: &'a ThemeSet, theme_name: &str) -> (&'a Theme, Strin
     match theme_set.themes.get(&resolved_name) {
         Some(theme) => (theme, resolved_name),
         None => {
-            log::warn!("Theme '{}' not found. Falling back.", theme_name);
+            log::warn!("Theme '{theme_name}' not found. Falling back.");
             if theme_name.contains("dark") {
                 (
                     theme_set.themes.get(DEFAULT_DARK_THEME).unwrap(),
@@ -273,8 +273,7 @@ fn read_file_bytes(path: &Path, max_size: i64) -> Result<Vec<u8>, String> {
         let limit_str = humansize::format_size(max_size_u64, humansize::DECIMAL);
         let file_size_str = humansize::format_size(metadata.len(), humansize::DECIMAL);
         return Err(format!(
-            "File size ({}) exceeds maximum preview limit ({})",
-            file_size_str, limit_str
+            "File size ({file_size_str}) exceeds maximum preview limit ({limit_str})"
         ));
     }
     if metadata.len() == 0 {
@@ -340,7 +339,7 @@ fn generate_svg_texture(
         return Err("SVG has zero width or height".to_string());
     }
     let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height)
-        .ok_or_else(|| format!("Failed to create pixel map for SVG ({}x{})", width, height))?;
+        .ok_or_else(|| format!("Failed to create pixel map for SVG ({width}x{height})"))?;
     resvg::render(&tree, usvg::Transform::identity(), &mut pixmap.as_mut());
     let pixels = pixmap.take();
     let size = [width as usize, height as usize];

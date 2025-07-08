@@ -27,8 +27,6 @@ type-complexity-threshold = 350
 
 # https://rust-lang.github.io/rust-clippy/master/index.html#disallowed_macros
 disallowed-macros = [
-    # `dbg!` is for temporary debugging and should not be committed.
-    'dbg',
 
     # `unimplemented!` should be replaced with actual implementation before merging.
     'std::unimplemented',

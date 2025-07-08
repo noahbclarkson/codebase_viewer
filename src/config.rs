@@ -99,10 +99,7 @@ impl AppConfig {
                 }
             }
             Err(e) => {
-                log::error!(
-                    "Failed to determine config file path: {}. Using defaults.",
-                    e
-                );
+                log::error!("Failed to determine config file path: {e}. Using defaults.");
                 Self::default()
             }
         }

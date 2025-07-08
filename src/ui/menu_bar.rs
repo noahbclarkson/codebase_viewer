@@ -17,7 +17,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                     .ctx()
                     .format_shortcut(&egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::O));
                 if ui
-                    .button(format!("Open Directory... ({})", open_shortcut))
+                    .button(format!("Open Directory... ({open_shortcut})"))
                     .clicked()
                 {
                     ui.close_menu();
@@ -61,7 +61,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                                 let button_text = if shortcut_num.is_empty() {
                                     label
                                 } else {
-                                    format!("{}. {}", shortcut_num, label)
+                                    format!("{shortcut_num}. {label}")
                                 };
 
                                 if ui
@@ -78,10 +78,9 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                                 app.config.clear_recent_projects();
                                 if let Err(e) = app.config.save() {
                                     log::error!(
-                                        "Failed to save config after clearing recent projects: {}",
-                                        e
+                                        "Failed to save config after clearing recent projects: {e}"
                                     );
-                                    app.status_message = format!("Error saving config: {}", e);
+                                    app.status_message = format!("Error saving config: {e}");
                                 }
                                 ui.close_menu();
                             }
@@ -103,7 +102,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                 if ui
                     .add_enabled(
                         selection_enabled,
-                        egui::Button::new(format!("Save Selection... ({})", save_shortcut)),
+                        egui::Button::new(format!("Save Selection... ({save_shortcut})")),
                     )
                     .clicked()
                 {
@@ -116,7 +115,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                 if ui
                     .add_enabled(
                         selection_enabled,
-                        egui::Button::new(format!("Load Selection... ({})", load_shortcut)),
+                        egui::Button::new(format!("Load Selection... ({load_shortcut})")),
                     )
                     .clicked()
                 {
@@ -134,7 +133,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                 if ui
                     .add_enabled(
                         report_enabled,
-                        egui::Button::new(format!("Generate Report... ({})", report_shortcut)),
+                        egui::Button::new(format!("Generate Report... ({report_shortcut})")),
                     )
                     .clicked()
                 {
@@ -147,7 +146,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                 let exit_shortcut = ui
                     .ctx()
                     .format_shortcut(&egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::Q));
-                if ui.button(format!("Exit ({})", exit_shortcut)).clicked() {
+                if ui.button(format!("Exit ({exit_shortcut})")).clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });
@@ -161,7 +160,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                 if ui
                     .add_enabled(
                         tree_loaded,
-                        egui::Button::new(format!("Select All ({})", select_all_shortcut)),
+                        egui::Button::new(format!("Select All ({select_all_shortcut})")),
                     )
                     .clicked()
                 {
@@ -176,7 +175,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                 if ui
                     .add_enabled(
                         tree_loaded,
-                        egui::Button::new(format!("Deselect All ({})", deselect_all_shortcut)),
+                        egui::Button::new(format!("Deselect All ({deselect_all_shortcut})")),
                     )
                     .clicked()
                 {
@@ -192,7 +191,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                 if ui
                     .add_enabled(
                         tree_loaded,
-                        egui::Button::new(format!("Find... ({})", find_shortcut)),
+                        egui::Button::new(format!("Find... ({find_shortcut})")),
                     )
                     .clicked()
                 {
@@ -206,7 +205,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                     .ctx()
                     .format_shortcut(&egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::Comma));
                 if ui
-                    .button(format!("Preferences... ({})", prefs_shortcut))
+                    .button(format!("Preferences... ({prefs_shortcut})"))
                     .clicked()
                 {
                     ui.close_menu();
@@ -224,7 +223,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                 if ui
                     .add_enabled(
                         tree_loaded,
-                        egui::Button::new(format!("Expand All ({})", expand_shortcut)),
+                        egui::Button::new(format!("Expand All ({expand_shortcut})")),
                     )
                     .clicked()
                 {
@@ -239,7 +238,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                 if ui
                     .add_enabled(
                         tree_loaded,
-                        egui::Button::new(format!("Collapse All ({})", collapse_shortcut)),
+                        egui::Button::new(format!("Collapse All ({collapse_shortcut})")),
                     )
                     .clicked()
                 {
@@ -255,7 +254,7 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                 if ui
                     .checkbox(
                         &mut app.show_preview_panel,
-                        format!("Show Preview Panel ({})", toggle_preview_shortcut),
+                        format!("Show Preview Panel ({toggle_preview_shortcut})"),
                     )
                     .clicked()
                 {
@@ -283,8 +282,8 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                             log::info!("Theme changed via menu to: {}", app.config.theme);
                             CodebaseApp::set_egui_theme(ctx, &app.config.theme);
                             if let Err(e) = app.config.save() {
-                                log::error!("Failed to save config after theme change: {}", e);
-                                app.status_message = format!("Error saving config: {}", e);
+                                log::error!("Failed to save config after theme change: {e}");
+                                app.status_message = format!("Error saving config: {e}");
                             }
                             app.preview_cache = None;
                             if app.show_preview_panel && app.selected_node_id.is_some() {
@@ -308,8 +307,8 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                         app.queue_action(AppAction::StartScan(root_path));
                     }
                     if let Err(e) = app.config.save() {
-                        log::error!("Failed to save config after hidden file toggle: {}", e);
-                        app.status_message = format!("Error saving config: {}", e);
+                        log::error!("Failed to save config after hidden file toggle: {e}");
+                        app.status_message = format!("Error saving config: {e}");
                     }
                     ui.close_menu();
                 }
@@ -320,15 +319,12 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                 if ui.button("Documentation / Source Code").clicked() {
                     ui.close_menu();
                     if let Err(e) = external::open_path_in_external_app(doc_url.as_ref()) {
-                        log::error!("Failed to open documentation URL '{}': {}", doc_url, e);
-                        app.status_message = format!("Error opening URL: {}", e);
+                        log::error!("Failed to open documentation URL '{doc_url}': {e}");
+                        app.status_message = format!("Error opening URL: {e}");
                         rfd::MessageDialog::new()
                             .set_level(rfd::MessageLevel::Error)
                             .set_title("Open URL Error")
-                            .set_description(format!(
-                                "Could not open the documentation URL:\n{}",
-                                e
-                            ))
+                            .set_description(format!("Could not open the documentation URL:\n{e}"))
                             .show();
                     }
                 }

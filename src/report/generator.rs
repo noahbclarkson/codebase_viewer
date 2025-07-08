@@ -17,7 +17,7 @@ use std::path::Path;
 /// This function is suitable for simple, synchronous report generation. For background
 /// generation, `collect_report_data` and `format_report_content` should be used separately.
 pub fn generate_report(app: &CodebaseApp, options: &ReportOptions) -> anyhow::Result<String> {
-    log::info!("Starting report generation with options: {:?}", options);
+    log::info!("Starting report generation with options: {options:?}");
     // 1. Collect data
     let data = collect_report_data(app, options)?;
     log::info!("Report data collected successfully.");
@@ -178,10 +178,7 @@ fn build_tree_string_recursive(
     let node = match app.nodes.get(node_id) {
         Some(n) => n,
         None => {
-            log::error!(
-                "generate_tree_string: Invalid node ID {} encountered.",
-                node_id
-            );
+            log::error!("generate_tree_string: Invalid node ID {node_id} encountered.");
             return; // Skip invalid nodes
         }
     };

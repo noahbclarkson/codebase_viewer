@@ -138,7 +138,7 @@ impl CodebaseApp {
     pub(crate) fn save_config(&mut self) {
         log::info!("Saving configuration on exit...");
         if let Err(e) = self.config.save() {
-            log::error!("Failed to save config on exit: {}", e);
+            log::error!("Failed to save config on exit: {e}");
         }
     }
 

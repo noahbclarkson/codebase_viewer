@@ -8,19 +8,19 @@ pub fn format_text(data: &ReportData) -> String {
     let sep = "=".repeat(70);
     let sub_sep = "-".repeat(70);
 
-    txt.push_str(&format!("{}\n", sep));
+    txt.push_str(&format!("{sep}\n"));
     txt.push_str(&format!(
         "{} - CODEBASE OVERVIEW\n",
         data.project_name.to_uppercase()
     ));
-    txt.push_str(&format!("{}\n", sep));
+    txt.push_str(&format!("{sep}\n"));
     txt.push_str(&format!("Generated on: {}\n", data.timestamp));
     txt.push_str(&format!("Root Path:    {}\n", data.root_path));
-    txt.push_str(&format!("{}\n\n", sep));
+    txt.push_str(&format!("{sep}\n\n"));
 
     if let Some(stats) = &data.stats {
         txt.push_str("PROJECT STATISTICS (FULL SCAN)\n");
-        txt.push_str(&format!("{}\n", sub_sep));
+        txt.push_str(&format!("{sub_sep}\n"));
         txt.push_str(&format!("Total Files:    {}\n", stats.total_files));
         txt.push_str(&format!("Total Dirs:     {}\n", stats.total_dirs));
         txt.push_str(&format!("Total Size:     {}\n", stats.total_size_human()));
@@ -48,7 +48,7 @@ pub fn format_text(data: &ReportData) -> String {
             let mut sorted_types: Vec<_> = stats.file_types.iter().collect();
             sorted_types.sort_by(|a, b| b.1.cmp(a.1));
             for (ext, count) in sorted_types.iter().take(20) {
-                txt.push_str(&format!("  {:<15}: {}\n", ext, count));
+                txt.push_str(&format!("  {ext:<15}: {count}\n"));
             }
             if sorted_types.len() > 20 {
                 txt.push_str("  ... and more\n");
@@ -68,31 +68,31 @@ pub fn format_text(data: &ReportData) -> String {
         if !stats.errors.is_empty() {
             txt.push_str("\nScan Errors:\n");
             for error in stats.errors.iter().take(10) {
-                txt.push_str(&format!("- {}\n", error));
+                txt.push_str(&format!("- {error}\n"));
             }
             if stats.errors.len() > 10 {
                 txt.push_str("- ... and more errors truncated\n");
             }
         }
-        txt.push_str(&format!("{}\n\n", sub_sep));
+        txt.push_str(&format!("{sub_sep}\n\n"));
     }
 
     txt.push_str("FULL DIRECTORY STRUCTURE\n");
-    txt.push_str(&format!("{}\n", sub_sep));
+    txt.push_str(&format!("{sub_sep}\n"));
     txt.push_str(&data.full_tree_structure);
-    txt.push_str(&format!("\n{}\n\n", sub_sep));
+    txt.push_str(&format!("\n{sub_sep}\n\n"));
 
     txt.push_str("SELECTED DIRECTORY STRUCTURE\n");
-    txt.push_str(&format!("{}\n", sub_sep));
+    txt.push_str(&format!("{sub_sep}\n"));
     txt.push_str(if data.selected_tree_structure.trim().is_empty() {
         "(No items selected)\n"
     } else {
         &data.selected_tree_structure
     });
-    txt.push_str(&format!("\n{}\n\n", sub_sep));
+    txt.push_str(&format!("\n{sub_sep}\n\n"));
 
     txt.push_str("SELECTED FILE CONTENTS\n");
-    txt.push_str(&format!("{}\n", sep));
+    txt.push_str(&format!("{sep}\n"));
     if !data.file_details.is_empty() {
         for detail in &data.file_details {
             txt.push_str(&format!("\n--- File: {} ---\n", detail.relative_path));
@@ -100,7 +100,7 @@ pub fn format_text(data: &ReportData) -> String {
                 "(Size: {} | Modified: {})\n",
                 detail.size, detail.modified
             ));
-            txt.push_str(&format!("{}\n", sub_sep));
+            txt.push_str(&format!("{sub_sep}\n"));
             match &detail.content {
                 Ok(content) => txt.push_str(content.trim_end()),
                 Err(reason) => txt.push_str(reason),
@@ -109,7 +109,7 @@ pub fn format_text(data: &ReportData) -> String {
         }
         txt.truncate(txt.trim_end().len());
         txt.push('\n');
-        txt.push_str(&format!("{}\n", sep));
+        txt.push_str(&format!("{sep}\n"));
     } else {
         let message = if data.stats.is_some() {
             "(File content inclusion disabled or no files selected)\n"
@@ -117,7 +117,7 @@ pub fn format_text(data: &ReportData) -> String {
             "(No files selected)\n"
         };
         txt.push_str(message);
-        txt.push_str(&format!("{}\n", sep));
+        txt.push_str(&format!("{sep}\n"));
     }
 
     txt.trim_end().to_string() + "\n"
