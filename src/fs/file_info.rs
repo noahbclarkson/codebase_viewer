@@ -28,21 +28,27 @@ impl FileInfo {
     /// Creates a `FileInfo` instance from an `ignore::DirEntry`.
     pub fn from_entry(entry: &ignore::DirEntry) -> anyhow::Result<Self> {
         let path = entry.path().to_path_buf();
-        let metadata = match entry.metadata() {
-            Ok(m) => m,
-            Err(e) => {
-                log::warn!("ignore::DirEntry metadata failed for '{}': {}. Falling back to std::fs::metadata.", path.display(), e);
-                std::fs::metadata(&path).map_err(|fs_err| {
-                    anyhow::anyhow!(
-                        "Failed to get metadata for '{}': ignore error ({}), fs error ({})",
-                        path.display(),
-                        e,
-                        fs_err
-                    )
-                })?
-            }
-        };
-        Self::from_metadata(path, metadata)
+
+        // Try the first method, and if it fails, try the second.
+        let metadata_result = entry.metadata().or_else(|ignore_err| {
+            log::warn!(
+                "ignore::DirEntry metadata failed for '{}': {}. Falling back to std::fs::metadata.",
+                path.display(),
+                ignore_err
+            );
+            // The second attempt. The error from this will be the final error if it also fails.
+            std::fs::metadata(&path)
+        });
+
+        // Now, handle the result of the two attempts.
+        match metadata_result {
+            Ok(metadata) => Self::from_metadata(path, metadata),
+            Err(e) => Err(anyhow::anyhow!(
+                "Failed to get metadata for '{}' after fallback: {}",
+                path.display(),
+                e
+            )),
+        }
     }
 
     /// Creates a `FileInfo` instance from a path and `std::fs::Metadata`.

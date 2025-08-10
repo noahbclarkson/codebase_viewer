@@ -70,7 +70,12 @@ impl CodebaseApp {
         self.is_scanning = true;
         let (sender, receiver) = crossbeam_channel::unbounded();
         self.scan_receiver = Some(receiver);
-        let (handle, cancel_signal) = scanner::scan(path, self.config.show_hidden_files, sender);
+        let (handle, cancel_signal) = scanner::scan(
+            path,
+            self.config.show_hidden_files,
+            self.config.respect_cbvignore,
+            sender,
+        );
         self.background_task = Some(super::state::BackgroundTask::Scan(handle, cancel_signal));
     }
 

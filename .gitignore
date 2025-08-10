@@ -31,3 +31,5 @@ ehthumbs.db
 *.key
 
 codebase_viewer_report.md
+
+/.claude/

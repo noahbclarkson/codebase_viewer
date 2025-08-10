@@ -21,6 +21,7 @@ const BATCH_TIMEOUT: Duration = Duration::from_millis(50);
 pub fn scan(
     root: PathBuf,
     show_hidden: bool,
+    respect_cbvignore: bool,
     sender: Sender<ScanMessage>,
 ) -> (JoinHandle<()>, Arc<AtomicBool>) {
     let cancel_signal = Arc::new(AtomicBool::new(false));
@@ -28,15 +29,22 @@ pub fn scan(
     let root_clone = root.clone();
 
     log::info!(
-        "Spawning scan worker thread for path: '{}', show_hidden: {}",
+        "Spawning scan worker thread for path: '{}', show_hidden: {}, respect_cbvignore: {}",
         root_clone.display(),
-        show_hidden
+        show_hidden,
+        respect_cbvignore
     );
 
     let handle = thread::Builder::new() // MODIFIED
         .name("scan_worker".to_string())
         .spawn(move || {
-            scan_worker(root_clone, show_hidden, sender, cancel_signal_clone);
+            scan_worker(
+                root_clone,
+                show_hidden,
+                respect_cbvignore,
+                sender,
+                cancel_signal_clone,
+            );
         })
         .expect("Failed to spawn scan worker thread");
 
@@ -46,6 +54,7 @@ pub fn scan(
 fn scan_worker(
     root: PathBuf,
     show_hidden: bool,
+    respect_cbvignore: bool,
     ui_sender: Sender<ScanMessage>,
     cancel_signal: Arc<AtomicBool>,
 ) {
@@ -57,15 +66,22 @@ fn scan_worker(
     let walker_thread = thread::Builder::new() // MODIFIED
         .name("ignore_walker".to_string())
         .spawn(move || {
-            let walker = WalkBuilder::new(&root)
+            let mut builder = WalkBuilder::new(&root);
+            builder
                 .hidden(!show_hidden)
                 .parents(true)
                 .ignore(true)
                 .git_global(true)
                 .git_ignore(true)
                 .git_exclude(true)
-                .threads(num_cpus::get().min(8))
-                .build_parallel();
+                .threads(num_cpus::get().min(8));
+
+            if respect_cbvignore {
+                builder.add_custom_ignore_filename(".cbvignore");
+                log::info!("Scanner will respect .cbvignore files.");
+            }
+
+            let walker = builder.build_parallel();
 
             walker.run(|| {
                 let node_tx = local_node_tx.clone();

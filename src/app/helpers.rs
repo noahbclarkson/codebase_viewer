@@ -146,9 +146,14 @@ impl CodebaseApp {
 
     /// Finds the `FileId` of the parent node containing `child_id`.
     pub(super) fn find_parent_id(&self, child_id: FileId) -> Option<FileId> {
-        self.nodes
-            .iter()
-            .position(|node| node.children.contains(&child_id))
+        // Get the child node's data.
+        let child_node = self.nodes.get(child_id)?;
+
+        // Get its parent's path.
+        let parent_path = child_node.path().parent()?;
+
+        // Look up the parent's path in the map to get its ID.
+        self.path_to_id_map.get(parent_path).copied()
     }
 
     /// Calculates the correct `Check` state for a parent node based on its children's states.

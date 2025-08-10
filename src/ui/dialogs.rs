@@ -54,6 +54,10 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
                             ui.checkbox(&mut draft.show_hidden_files, "Include files/dirs starting with '.'");
                             ui.end_row();
 
+                            ui.label("Respect .cbvignore:");
+                            ui.checkbox(&mut draft.respect_cbvignore, "Use .cbvignore files for custom ignores");
+                            ui.end_row();
+
                             ui.label("Auto-expand Limit:");
                             ui.add(
                                 DragValue::new(&mut draft.auto_expand_limit)
@@ -123,6 +127,7 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
         if let Some(new_cfg) = app.prefs_draft.take() {
             let theme_changed = new_cfg.theme != app.config.theme;
             let hidden_changed = new_cfg.show_hidden_files != app.config.show_hidden_files;
+            let cbvignore_changed = new_cfg.respect_cbvignore != app.config.respect_cbvignore;
 
             app.config = new_cfg;
 
@@ -133,10 +138,10 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
                     app.trigger_preview_load(app.selected_node_id.unwrap(), ctx);
                 }
             }
-            if hidden_changed {
+            if hidden_changed || cbvignore_changed {
                 if let Some(root) = app.root_path.clone() {
                     log::info!(
-                        "Hidden file setting changed, triggering rescan of '{}'",
+                        "Scan setting changed (hidden files or .cbvignore), triggering rescan of '{}'",
                         root.display()
                     );
                     app.queue_action(AppAction::StartScan(root));

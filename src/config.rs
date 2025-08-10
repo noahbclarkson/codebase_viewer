@@ -25,6 +25,8 @@ pub struct AppConfig {
     pub max_file_size_preview: i64,
     /// Whether the scanner should include hidden files and directories (starting with '.').
     pub show_hidden_files: bool,
+    /// Whether the scanner should respect .cbvignore files.
+    pub respect_cbvignore: bool,
     /// Default format for generated reports: "markdown", "html", "text".
     pub export_format: String,
     /// Default setting for including scan statistics in reports.
@@ -44,6 +46,7 @@ impl Default for AppConfig {
             auto_expand_limit: 100,
             max_file_size_preview: 1_048_576, // 1 MiB
             show_hidden_files: false,
+            respect_cbvignore: true,
             export_format: "markdown".to_string(),
             export_include_stats: true,
             export_include_contents: true,

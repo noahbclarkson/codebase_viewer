@@ -312,6 +312,27 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                     }
                     ui.close_menu();
                 }
+
+                if ui
+                    .checkbox(
+                        &mut app.config.respect_cbvignore,
+                        "Respect .cbvignore Files",
+                    )
+                    .changed()
+                {
+                    log::info!(
+                        "Respect .cbvignore toggled via menu to: {}",
+                        app.config.respect_cbvignore
+                    );
+                    if let Some(root_path) = app.root_path.clone() {
+                        app.queue_action(AppAction::StartScan(root_path));
+                    }
+                    if let Err(e) = app.config.save() {
+                        log::error!("Failed to save config after .cbvignore toggle: {e}");
+                        app.status_message = format!("Error saving config: {e}");
+                    }
+                    ui.close_menu();
+                }
             });
 
             ui.menu_button("Help", |ui| {
