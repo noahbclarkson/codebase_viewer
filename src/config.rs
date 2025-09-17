@@ -35,6 +35,8 @@ pub struct AppConfig {
     pub export_include_contents: bool,
     /// List of recently opened project directory paths (absolute paths).
     pub recent_projects: Vec<PathBuf>,
+    /// Stored Gemini API key fallback when environment variable is not set.
+    pub gemini_api_key: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -51,6 +53,7 @@ impl Default for AppConfig {
             export_include_stats: true,
             export_include_contents: true,
             recent_projects: Vec::new(),
+            gemini_api_key: None,
         }
     }
 }

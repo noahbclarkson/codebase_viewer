@@ -4,13 +4,15 @@ use super::{state::CodebaseApp, AppAction};
 use crate::{
     external,
     fs::scanner,
+    llm::gemini_service,
     model::Check,
-    report::{self, ReportOptions},
+    report::{self, ReportFormat, ReportOptions},
     selection,
     task::TaskMessage,
 };
 use arboard::Clipboard;
-use std::{fs as std_fs, path::PathBuf, sync::atomic::Ordering, thread};
+use std::{env, fs as std_fs, path::PathBuf, sync::atomic::Ordering, thread};
+use tokio::runtime::Builder;
 
 impl CodebaseApp {
     /// Processes all actions queued in `deferred_actions`.
@@ -35,6 +37,7 @@ impl CodebaseApp {
                 AppAction::StartScan(path) => self.perform_start_scan(path),
                 AppAction::CancelScan => self.perform_cancel_scan(),
                 AppAction::FocusSearchBox => self.perform_focus_search_box(),
+                AppAction::QueryAI(query) => self.perform_query_ai(query),
             }
         }
     }
@@ -409,5 +412,74 @@ impl CodebaseApp {
 
     fn perform_focus_search_box(&mut self) {
         self.focus_search_box = true;
+    }
+
+    fn perform_query_ai(&mut self, query: String) {
+        if self.is_querying_ai {
+            log::warn!("AI query already in progress; ignoring new request.");
+            return;
+        }
+
+        if self.root_path.is_none() {
+            self.status_message = "Open a directory before querying Gemini.".to_string();
+            return;
+        }
+
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            self.status_message = "Enter a question before querying Gemini.".to_string();
+            return;
+        }
+
+        let api_key = env::var("GEMINI_API_KEY")
+            .ok()
+            .or_else(|| self.config.gemini_api_key.clone());
+
+        let Some(api_key) = api_key else {
+            let message = "Gemini API key not set. Provide GEMINI_API_KEY env var or configure it in Preferences.".to_string();
+            self.ai_response_text = Some(message.clone());
+            self.status_message = message;
+            log::error!("{}", self.status_message);
+            return;
+        };
+
+        let Some(task_sender) = self.task_sender.clone() else {
+            self.status_message = "Internal error: AI task channel unavailable.".to_string();
+            log::error!("{}", self.status_message);
+            return;
+        };
+
+        self.is_querying_ai = true;
+        self.ai_response_text = None;
+        self.status_message = "Querying Gemini...".to_string();
+        self.show_ai_query_window = true;
+
+        let prompt = trimmed.to_owned();
+        let report_options = ReportOptions {
+            format: ReportFormat::Markdown,
+            include_stats: true,
+            include_contents: true,
+        };
+        let context_result = report::generate_report(self, &report_options);
+
+        thread::spawn(move || {
+            let result = match context_result {
+                Ok(context) => match Builder::new_current_thread().enable_all().build() {
+                    Ok(runtime) => runtime.block_on(gemini_service::query_codebase(
+                        &api_key,
+                        "gemini-2.5-pro",
+                        context,
+                        prompt,
+                        2.0,
+                    )),
+                    Err(err) => Err(gemini_service::AppError::Internal(err.to_string())),
+                },
+                Err(err) => Err(gemini_service::AppError::Internal(err.to_string())),
+            };
+
+            if task_sender.send(TaskMessage::AIResponse(result)).is_err() {
+                log::warn!("Failed to send AI response result to UI thread.");
+            }
+        });
     }
 }

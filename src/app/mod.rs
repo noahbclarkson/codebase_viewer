@@ -39,6 +39,7 @@ pub(crate) enum AppAction {
     StartScan(std::path::PathBuf),
     CancelScan,
     FocusSearchBox,
+    QueryAI(String),
 }
 
 impl eframe::App for CodebaseApp {
@@ -112,6 +113,7 @@ impl CodebaseApp {
 
         ui::draw_preferences_window(self, ctx);
         ui::draw_report_options_window(self, ctx);
+        ui::draw_ai_query_window(self, ctx);
         ui::draw_about_window(self, ctx);
         ui::draw_shortcuts_window(self, ctx);
     }

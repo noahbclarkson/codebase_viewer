@@ -4,7 +4,7 @@ use crate::{
     app::{AppAction, CodebaseApp},
     report::ReportFormat,
 };
-use egui::{Button, Color32, Context, DragValue, Grid, RichText, ScrollArea, Window};
+use egui::{Button, Color32, Context, DragValue, Grid, RichText, ScrollArea, TextEdit, Window};
 use egui_phosphor::regular::*;
 
 /// Draws the Preferences window (modal).
@@ -102,6 +102,37 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
                             });
                             ui.end_row();
                         });
+
+                    ui.separator();
+                    ui.heading("Integrations");
+                    ui.add_space(4.0);
+                    Grid::new("prefs_integrations_grid")
+                        .num_columns(2)
+                        .spacing([40.0, 8.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            ui.label("Gemini API Key:");
+                            let mut key_value = draft.gemini_api_key.clone().unwrap_or_default();
+                            let response = ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut key_value)
+                                        .password(true)
+                                        .hint_text("Use GEMINI_API_KEY env var to avoid storing locally"),
+                                )
+                                .on_hover_text(
+                                    "Stored locally if provided. Leave blank to rely on GEMINI_API_KEY environment variable.",
+                                );
+                            if response.changed() {
+                                let trimmed = key_value.trim();
+                                draft.gemini_api_key = if trimmed.is_empty() {
+                                    None
+                                } else {
+                                    Some(trimmed.to_string())
+                                };
+                            }
+                            ui.end_row();
+                        });
+
                 });
 
                 ui.separator();
@@ -165,6 +196,57 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
                 }
             }
         }
+    }
+}
+
+pub fn draw_ai_query_window(app: &mut CodebaseApp, ctx: &Context) {
+    if !app.show_ai_query_window {
+        return;
+    }
+    let mut is_open = app.show_ai_query_window;
+
+    Window::new("Query Codebase with AI")
+        .open(&mut is_open)
+        .resizable(true)
+        .default_size([620.0, 420.0])
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.label("Enter your question about the selected files:");
+            ui.add(
+                TextEdit::multiline(&mut app.ai_query_text)
+                    .desired_rows(4)
+                    .desired_width(f32::INFINITY),
+            );
+            ui.add_space(8.0);
+
+            let send_enabled = !app.ai_query_text.trim().is_empty() && !app.is_querying_ai;
+            if ui
+                .add_enabled(send_enabled, Button::new("Send Query"))
+                .on_hover_text("Generate a fresh report context and send it to Gemini")
+                .clicked()
+            {
+                let prompt = app.ai_query_text.trim().to_owned();
+                app.queue_action(AppAction::QueryAI(prompt));
+            }
+
+            ui.separator();
+            ui.heading("Response");
+            ScrollArea::vertical().stick_to_bottom(true).show(ui, |ui| {
+                if app.is_querying_ai {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label("Awaiting Gemini response...");
+                    });
+                } else if let Some(response) = &app.ai_response_text {
+                    ui.label(response);
+                } else {
+                    ui.label("(No response yet)");
+                }
+            });
+        });
+
+    if !is_open {
+        app.show_ai_query_window = false;
     }
 }
 
