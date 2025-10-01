@@ -141,6 +141,21 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                     app.show_report_options_window = true;
                 }
 
+                let ai_enabled = app.root_path.is_some()
+                    && !app.is_scanning
+                    && !app.is_generating_report
+                    && !app.is_querying_ai;
+                if ui
+                    .add_enabled(ai_enabled, egui::Button::new("Query with AI..."))
+                    .on_hover_text("Generate context and send a question to Gemini")
+                    .clicked()
+                {
+                    ui.close_menu();
+                    app.ai_query_text.clear();
+                    app.ai_response_text = None;
+                    app.show_ai_query_window = true;
+                }
+
                 ui.separator();
 
                 let exit_shortcut = ui

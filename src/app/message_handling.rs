@@ -19,84 +19,8 @@ impl CodebaseApp {
     fn handle_scan_messages(&mut self) {
         if let Some(receiver) = self.scan_receiver.clone() {
             while let Ok(msg) = receiver.try_recv() {
-                match msg {
-                    ScanMessage::AddNode(node) => self.add_single_node(node),
-                    ScanMessage::AddNodes(nodes) => {
-                        for node in nodes {
-                            self.add_single_node(node);
-                        }
-                    }
-                    ScanMessage::Error(err_msg) => {
-                        log::error!("Scan error reported: {err_msg}");
-                        self.status_message = format!("Scan error: {err_msg}");
-                        if let Some(stats) = self.scan_stats.as_mut() {
-                            stats.add_error(err_msg);
-                        }
-                    }
-                    ScanMessage::Progress(msg) => self.status_message = msg,
-                    ScanMessage::Stats(partial_stats) => {
-                        if let Some(total_stats) = self.scan_stats.as_mut() {
-                            total_stats.merge(partial_stats);
-                        }
-                    }
-                    ScanMessage::Finished => {
-                        log::info!("Scan finished message received.");
-                        self.is_scanning = false;
-                        self.background_task = None;
-                        self.scan_receiver = None;
-                        if let Some(stats) = self.scan_stats.as_mut() {
-                            stats.finalize();
-                            self.status_message = format!(
-                                "Scan complete: {} files, {} dirs, {}",
-                                stats.total_files,
-                                stats.total_dirs,
-                                stats.total_size_human()
-                            );
-                        } else {
-                            self.status_message = "Scan complete.".to_string();
-                        }
-                        if !self.orphaned_children.is_empty() {
-                            log::warn!(
-                                "Scan finished with {} unresolved orphan parent path(s).",
-                                self.orphaned_children.len()
-                            );
-                            for (parent, children) in &self.orphaned_children {
-                                log::warn!(" - Missing Parent: {}", parent.display());
-                                for (_, child_path) in children.iter().take(5) {
-                                    log::warn!("   - Orphaned Child: {}", child_path.display());
-                                }
-                                if children.len() > 5 {
-                                    log::warn!(
-                                        "   - ...and {} more orphans for this parent",
-                                        children.len() - 5
-                                    );
-                                }
-                            }
-                            self.orphaned_children.clear();
-                        }
-                        self.sort_nodes_recursively(self.root_id);
-                        if let Some(stats) = &self.scan_stats {
-                            if self.config.auto_expand_limit > 0
-                                && stats.total_files <= self.config.auto_expand_limit
-                            {
-                                log::info!(
-                                    "Auto-expanding nodes as total file count ({}) <= limit ({}).",
-                                    stats.total_files,
-                                    self.config.auto_expand_limit
-                                );
-                                if let Some(root_id) = self.root_id {
-                                    if let Some(root_node) = self.nodes.get(root_id) {
-                                        let children = root_node.children.clone();
-                                        for child_id in children {
-                                            if let Some(child_node) = self.nodes.get_mut(child_id) {
-                                                child_node.is_expanded = true;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                if self.process_scan_message(msg) {
+                    break;
                 }
             }
         }
@@ -154,6 +78,22 @@ impl CodebaseApp {
                             }
                         }
                     }
+                    TaskMessage::AIResponse(result) => {
+                        self.is_querying_ai = false;
+                        self.show_ai_query_window = true;
+                        match result {
+                            Ok(response) => {
+                                self.ai_response_text = Some(response);
+                                self.status_message = "AI query complete.".to_string();
+                            }
+                            Err(err) => {
+                                let message = format!("AI query failed: {err}");
+                                self.ai_response_text = Some(message.clone());
+                                self.status_message = message;
+                                log::error!("{}", self.status_message);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -166,7 +106,6 @@ impl CodebaseApp {
                     log::trace!("Received preview for selected node {id}");
                     self.preview_cache =
                         Some(std::sync::Arc::new(parking_lot::Mutex::new(cache_entry)));
-                // MODIFIED
                 } else {
                     log::trace!(
                         "Received preview for node {}, but node {:?} is selected. Ignoring.",
@@ -176,6 +115,90 @@ impl CodebaseApp {
                 }
             }
         }
+    }
+
+    pub(crate) fn process_scan_message(&mut self, msg: ScanMessage) -> bool {
+        match msg {
+            ScanMessage::AddNode(node) => self.add_single_node(node),
+            ScanMessage::AddNodes(nodes) => {
+                for node in nodes {
+                    self.add_single_node(node);
+                }
+            }
+            ScanMessage::Error(err_msg) => {
+                log::error!("Scan error reported: {err_msg}");
+                self.status_message = format!("Scan error: {err_msg}");
+                if let Some(stats) = self.scan_stats.as_mut() {
+                    stats.add_error(err_msg);
+                }
+            }
+            ScanMessage::Progress(msg) => self.status_message = msg,
+            ScanMessage::Stats(partial_stats) => {
+                if let Some(total_stats) = self.scan_stats.as_mut() {
+                    total_stats.merge(partial_stats);
+                }
+            }
+            ScanMessage::Finished => {
+                log::info!("Scan finished message received.");
+                self.is_scanning = false;
+                self.background_task = None;
+                self.scan_receiver = None;
+                if let Some(stats) = self.scan_stats.as_mut() {
+                    stats.finalize();
+                    self.status_message = format!(
+                        "Scan complete: {} files, {} dirs, {}",
+                        stats.total_files,
+                        stats.total_dirs,
+                        stats.total_size_human()
+                    );
+                } else {
+                    self.status_message = "Scan complete.".to_string();
+                }
+                if !self.orphaned_children.is_empty() {
+                    log::warn!(
+                        "Scan finished with {} unresolved orphan parent path(s).",
+                        self.orphaned_children.len()
+                    );
+                    for (parent, children) in &self.orphaned_children {
+                        log::warn!(" - Missing Parent: {}", parent.display());
+                        for (_, child_path) in children.iter().take(5) {
+                            log::warn!("   - Orphaned Child: {}", child_path.display());
+                        }
+                        if children.len() > 5 {
+                            log::warn!(
+                                "   - ...and {} more orphans for this parent",
+                                children.len() - 5
+                            );
+                        }
+                    }
+                    self.orphaned_children.clear();
+                }
+                self.sort_nodes_recursively(self.root_id);
+                if let Some(stats) = &self.scan_stats {
+                    if self.config.auto_expand_limit > 0
+                        && stats.total_files <= self.config.auto_expand_limit
+                    {
+                        log::info!(
+                            "Auto-expanding nodes as total file count ({}) <= limit ({}).",
+                            stats.total_files,
+                            self.config.auto_expand_limit
+                        );
+                        if let Some(root_id) = self.root_id {
+                            if let Some(root_node) = self.nodes.get(root_id) {
+                                let children = root_node.children.clone();
+                                for child_id in children {
+                                    if let Some(child_node) = self.nodes.get_mut(child_id) {
+                                        child_node.is_expanded = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                return true;
+            }
+        }
+        false
     }
 
     /// Helper function to process the addition of a single FileNode.

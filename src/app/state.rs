@@ -46,6 +46,10 @@ pub struct CodebaseApp {
     pub(crate) show_report_options_window: bool,
     pub(crate) show_about_window: bool,
     pub(crate) show_shortcuts_window: bool,
+    pub(crate) show_ai_query_window: bool,
+    pub(crate) ai_query_text: String,
+    pub(crate) ai_response_text: Option<String>,
+    pub(crate) is_querying_ai: bool,
     pub(crate) last_report_options: ReportOptions,
     pub(crate) focus_search_box: bool,
     pub(crate) prefs_draft: Option<AppConfig>,
@@ -106,6 +110,10 @@ impl CodebaseApp {
             show_report_options_window: false,
             show_about_window: false,
             show_shortcuts_window: false,
+            show_ai_query_window: false,
+            ai_query_text: String::new(),
+            ai_response_text: None,
+            is_querying_ai: false,
             focus_search_box: false,
             nodes: Vec::new(),
             root_id: None,
@@ -129,6 +137,49 @@ impl CodebaseApp {
         }
     }
 
+    pub fn headless_from_config(config: AppConfig) -> Self {
+        let (syntax_set, theme_set) = crate::preview::load_syntax_highlighting_assets();
+        let last_report_options = ReportOptions::from_config(&config);
+
+        Self {
+            config,
+            selected_node_id: None,
+            search_text: String::new(),
+            status_message: String::new(),
+            preview_cache: None,
+            show_preview_panel: false,
+            preview_word_wrap: false,
+            show_preferences_window: false,
+            show_report_options_window: false,
+            show_about_window: false,
+            show_shortcuts_window: false,
+            show_ai_query_window: false,
+            ai_query_text: String::new(),
+            ai_response_text: None,
+            is_querying_ai: false,
+            last_report_options,
+            focus_search_box: false,
+            prefs_draft: None,
+            report_options_draft: None,
+            nodes: Vec::new(),
+            root_id: None,
+            root_path: None,
+            scan_stats: Some(ScanStats::default()),
+            orphaned_children: HashMap::new(),
+            path_to_id_map: HashMap::new(),
+            scan_receiver: None,
+            preview_receiver: None,
+            preview_sender: None,
+            task_receiver: None,
+            task_sender: None,
+            background_task: None,
+            is_scanning: false,
+            is_generating_report: false,
+            syntax_set,
+            theme_set,
+            deferred_actions: Vec::new(),
+        }
+    }
     /// Queues an action to be processed after the current UI update cycle.
     pub(crate) fn queue_action(&mut self, action: super::AppAction) {
         self.deferred_actions.push(action);

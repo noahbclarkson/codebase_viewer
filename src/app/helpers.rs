@@ -79,7 +79,7 @@ impl CodebaseApp {
     }
 
     /// Recursively sets the check state for a node and all its descendants.
-    pub(super) fn set_node_state_recursive(&mut self, node_id: FileId, state: Check) {
+    pub(crate) fn set_node_state_recursive(&mut self, node_id: FileId, state: Check) {
         let mut queue = vec![node_id];
         while let Some(current_id) = queue.pop() {
             if let Some(node) = self.nodes.get_mut(current_id) {
@@ -92,7 +92,7 @@ impl CodebaseApp {
     }
 
     /// Recursively sets the expansion state for a node and all its descendants.
-    pub(super) fn set_node_expansion_recursive(&mut self, node_id: FileId, expand: bool) {
+    pub(crate) fn set_node_expansion_recursive(&mut self, node_id: FileId, expand: bool) {
         let mut queue = vec![node_id];
         while let Some(current_id) = queue.pop() {
             if let Some(node) = self.nodes.get_mut(current_id) {
@@ -126,7 +126,7 @@ impl CodebaseApp {
     }
 
     /// Recalculates the check state for all nodes in a subtree.
-    pub(super) fn recalculate_all_parent_states(&mut self, node_id: FileId) {
+    pub(crate) fn recalculate_all_parent_states(&mut self, node_id: FileId) {
         let children = self
             .nodes
             .get(node_id)
