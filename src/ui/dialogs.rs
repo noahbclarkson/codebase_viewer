@@ -99,6 +99,7 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
                             ui.vertical(|ui| {
                                 ui.checkbox(&mut draft.export_include_stats, "Include Statistics Section");
                                 ui.checkbox(&mut draft.export_include_contents, "Include Selected File Contents");
+                                ui.checkbox(&mut draft.export_include_line_numbers, "Include Line Numbers in File Contents");
                             });
                             ui.end_row();
                         });
@@ -306,6 +307,16 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
 
                         ui.label("Include File Contents:");
                         ui.checkbox(&mut draft.include_contents, "Add content of selected files");
+                        ui.end_row();
+
+                        ui.label("Include Line Numbers:");
+                        ui.add_enabled_ui(draft.include_contents, |ui| {
+                            ui.checkbox(
+                                &mut draft.include_line_numbers,
+                                "Prepend line numbers to file content",
+                            )
+                            .on_hover_text("Only applies if 'Include File Contents' is checked");
+                        });
                         ui.end_row();
                     });
 

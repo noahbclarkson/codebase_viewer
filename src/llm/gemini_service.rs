@@ -41,8 +41,7 @@ pub async fn query_codebase(
 
     let system_message = ChatCompletionRequestSystemMessageArgs::default()
         .content(format!(
-            "You are an expert software development assistant. Analyze the following codebase report and answer the user's query based only on the provided information.\n\n--- CODEBASE REPORT ---\n\n{}",
-            context
+            "You are an expert software development assistant. Analyze the following codebase report and answer the user's query based only on the provided information.\n\n--- CODEBASE REPORT ---\n\n{context}"
         ))
         .build()?;
 

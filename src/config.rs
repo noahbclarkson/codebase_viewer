@@ -33,6 +33,8 @@ pub struct AppConfig {
     pub export_include_stats: bool,
     /// Default setting for including selected file contents in reports.
     pub export_include_contents: bool,
+    /// Default setting for including line numbers in report file contents.
+    pub export_include_line_numbers: bool,
     /// List of recently opened project directory paths (absolute paths).
     pub recent_projects: Vec<PathBuf>,
     /// Stored Gemini API key fallback when environment variable is not set.
@@ -52,6 +54,7 @@ impl Default for AppConfig {
             export_format: "markdown".to_string(),
             export_include_stats: true,
             export_include_contents: true,
+            export_include_line_numbers: true,
             recent_projects: Vec::new(),
             gemini_api_key: None,
         }

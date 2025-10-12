@@ -36,6 +36,7 @@ pub struct ReportOptions {
     pub format: ReportFormat,
     pub include_stats: bool,
     pub include_contents: bool,
+    pub include_line_numbers: bool,
 }
 
 impl ReportOptions {
@@ -49,6 +50,7 @@ impl ReportOptions {
             },
             include_stats: config.export_include_stats,
             include_contents: config.export_include_contents,
+            include_line_numbers: config.export_include_line_numbers,
         }
     }
 }

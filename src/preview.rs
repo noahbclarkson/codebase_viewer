@@ -18,8 +18,15 @@ pub const DEFAULT_LIGHT_THEME: &str = "base16-ocean.light";
 pub const DEFAULT_DARK_THEME: &str = "base16-ocean.dark";
 
 #[derive(Clone)]
+pub struct HighlightedLine {
+    pub line_number: usize,
+    pub line_number_job: LayoutJob,
+    pub content_job: LayoutJob,
+}
+
+#[derive(Clone)]
 pub enum PreviewContent {
-    Text(LayoutJob),
+    Text(Vec<HighlightedLine>),
     Image(Arc<TextureHandle>),
     Error(String),
     Unsupported(String),
@@ -126,9 +133,8 @@ pub fn generate_preview(
             None,
         ),
         _ => {
-            // The word_wrap setting is handled by the UI when rendering, not during generation.
             match highlight_text_content(config, syntax_set, theme_set, path) {
-                Ok((job, theme_name)) => (PreviewContent::Text(job), Some(theme_name)),
+                Ok((lines, theme_name)) => (PreviewContent::Text(lines), Some(theme_name)),
                 Err(e) => {
                     let fallback_theme = get_fallback_theme_name(config);
                     (PreviewContent::Error(e), Some(fallback_theme))
@@ -149,10 +155,10 @@ fn highlight_text_content(
     syntax_set: &'static SyntaxSet,
     theme_set: &'static ThemeSet,
     path: &Path,
-) -> Result<(LayoutJob, String), String> {
+) -> Result<(Vec<HighlightedLine>, String), String> {
     let content = read_file_content(path, config.max_file_size_preview)?;
     if content.is_empty() {
-        return Ok((LayoutJob::default(), get_fallback_theme_name(config)));
+        return Ok((Vec::new(), get_fallback_theme_name(config)));
     }
 
     let syntax = find_syntax(syntax_set, path);
@@ -167,7 +173,6 @@ fn highlight_text_content(
     let (theme, theme_name_used) = get_theme(theme_set, theme_choice);
 
     let mut highlighter = HighlightLines::new(syntax, theme);
-    let mut job = LayoutJob::default();
     let font_id = FontId::monospace(12.0);
     let line_count = content.lines().count();
     let line_number_width = if line_count == 0 {
@@ -176,9 +181,14 @@ fn highlight_text_content(
         (line_count as f64).log10() as usize + 1
     };
 
+    let mut highlighted_lines = Vec::new();
+
     for (i, line) in LinesWithEndings::from(&content).enumerate() {
-        let line_num_str = format!("{:<width$} │ ", i + 1, width = line_number_width);
-        job.append(
+        let line_number = i + 1;
+
+        let line_num_str = format!("{line_number:<line_number_width$} │ ");
+        let mut line_number_job = LayoutJob::default();
+        line_number_job.append(
             &line_num_str,
             0.0,
             egui::TextFormat {
@@ -189,6 +199,7 @@ fn highlight_text_content(
             },
         );
 
+        let mut content_job = LayoutJob::default();
         match highlighter.highlight_line(line, syntax_set) {
             Ok(ranges) => {
                 for (style, text) in ranges {
@@ -203,7 +214,7 @@ fn highlight_text_content(
                     let underline = style
                         .font_style
                         .contains(syntect::highlighting::FontStyle::UNDERLINE);
-                    job.append(
+                    content_job.append(
                         text,
                         0.0,
                         egui::TextFormat {
@@ -222,8 +233,8 @@ fn highlight_text_content(
                 }
             }
             Err(e) => {
-                log::error!("Syntect highlighting error on line {}: {}", i + 1, e);
-                job.append(
+                log::error!("Syntect highlighting error on line {line_number}: {e}");
+                content_job.append(
                     line,
                     0.0,
                     egui::TextFormat {
@@ -235,9 +246,15 @@ fn highlight_text_content(
                 );
             }
         }
+
+        highlighted_lines.push(HighlightedLine {
+            line_number,
+            line_number_job,
+            content_job,
+        });
     }
 
-    Ok((job, theme_name_used))
+    Ok((highlighted_lines, theme_name_used))
 }
 
 pub(crate) fn read_file_content(path: &Path, max_size: i64) -> Result<String, String> {
@@ -361,18 +378,30 @@ fn get_fallback_theme_name(config: &AppConfig) -> String {
 }
 
 /// Helper function to render a `PreviewContent` enum variant into the UI.
-pub(crate) fn render_preview_content(ui: &mut egui::Ui, content: &PreviewContent, word_wrap: bool) {
+pub(crate) fn render_preview_content(ui: &mut egui::Ui, content: &PreviewContent, word_wrap: bool, selectable_line_numbers: bool) {
     match content {
-        PreviewContent::Text(layout_job) => {
-            let mut job = layout_job.clone();
-            job.wrap.break_anywhere = word_wrap;
-            // Let the UI decide the max width when wrapping is enabled.
-            job.wrap.max_width = if word_wrap {
-                ui.available_width()
-            } else {
-                f32::INFINITY
-            };
-            ui.add(egui::Label::new(job).sense(Sense::click_and_drag()));
+        PreviewContent::Text(lines) => {
+            for line in lines {
+                ui.horizontal(|ui| {
+                    let mut line_num_job = line.line_number_job.clone();
+                    line_num_job.wrap.max_width = f32::INFINITY;
+
+                    if selectable_line_numbers {
+                        ui.add(egui::Label::new(line_num_job).sense(Sense::click_and_drag()));
+                    } else {
+                        ui.add(egui::Label::new(line_num_job).sense(Sense::hover()));
+                    }
+
+                    let mut content_job = line.content_job.clone();
+                    content_job.wrap.break_anywhere = word_wrap;
+                    content_job.wrap.max_width = if word_wrap {
+                        ui.available_width()
+                    } else {
+                        f32::INFINITY
+                    };
+                    ui.add(egui::Label::new(content_job).sense(Sense::click_and_drag()));
+                });
+            }
         }
         PreviewContent::Image(texture_handle_arc) => {
             let max_size = ui.available_size() - Vec2::splat(10.0);

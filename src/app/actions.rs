@@ -459,6 +459,7 @@ impl CodebaseApp {
             format: ReportFormat::Markdown,
             include_stats: true,
             include_contents: true,
+            include_line_numbers: true,
         };
         let context_result = report::generate_report(self, &report_options);
 

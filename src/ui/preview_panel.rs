@@ -17,6 +17,12 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
                 app.show_preview_panel = false;
             }
 
+            ui.toggle_value(
+                &mut app.preview_selectable_line_numbers,
+                RichText::new(LIST_NUMBERS),
+            )
+            .on_hover_text("Toggle Line Number Selection");
+
             let word_wrap_button = ui
                 .toggle_value(
                     &mut app.preview_word_wrap,
@@ -92,6 +98,7 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
                                         ui,
                                         &cache.content,
                                         app.preview_word_wrap,
+                                        app.preview_selectable_line_numbers,
                                     );
                                 } else {
                                     ui.horizontal(|ui| {

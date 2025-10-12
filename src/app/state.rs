@@ -41,7 +41,8 @@ pub struct CodebaseApp {
     pub(crate) status_message: String,
     pub(crate) preview_cache: Option<Arc<Mutex<PreviewCache>>>,
     pub(crate) show_preview_panel: bool,
-    pub(crate) preview_word_wrap: bool, // MODIFIED: Added word wrap state
+    pub(crate) preview_word_wrap: bool,
+    pub(crate) preview_selectable_line_numbers: bool,
     pub(crate) show_preferences_window: bool,
     pub(crate) show_report_options_window: bool,
     pub(crate) show_about_window: bool,
@@ -105,7 +106,8 @@ impl CodebaseApp {
                 .to_string(),
             preview_cache: None,
             show_preview_panel: true,
-            preview_word_wrap: false, // MODIFIED: Initialize word wrap to false
+            preview_word_wrap: false,
+            preview_selectable_line_numbers: false,
             show_preferences_window: false,
             show_report_options_window: false,
             show_about_window: false,
@@ -149,6 +151,7 @@ impl CodebaseApp {
             preview_cache: None,
             show_preview_panel: false,
             preview_word_wrap: false,
+            preview_selectable_line_numbers: false,
             show_preferences_window: false,
             show_report_options_window: false,
             show_about_window: false,

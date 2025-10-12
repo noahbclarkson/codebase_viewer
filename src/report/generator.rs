@@ -8,6 +8,27 @@ use crate::{
 };
 use std::path::Path;
 
+/// Prepends line numbers to a block of text.
+fn prepend_line_numbers(content: &str) -> String {
+    let line_count = content.lines().count();
+    if line_count == 0 {
+        return String::new();
+    }
+    let line_number_width = (line_count as f64).log10().floor() as usize + 1;
+
+    content
+        .lines()
+        .enumerate()
+        .map(|(i, line)| {
+            format!(
+                "{number:>width$} | {line}\n",
+                number = i + 1,
+                width = line_number_width
+            )
+        })
+        .collect()
+}
+
 /// Generates the full report content as a string based on options.
 ///
 /// This function orchestrates the process:
@@ -65,7 +86,7 @@ pub fn collect_report_data(
     // Collect details for selected files (including content if requested)
     let file_details = if options.include_contents {
         log::debug!("Collecting file details (including content)...");
-        collect_file_details(app, app.config.max_file_size_preview)
+        collect_file_details(app, app.config.max_file_size_preview, options)
     } else {
         log::debug!("Collecting file details (excluding content)...");
         // Collect details but skip content reading
@@ -223,7 +244,7 @@ fn build_tree_string_recursive(
 
 /// Collects content and metadata for all *selected* files.
 /// Reads file content based on `max_size` limit.
-fn collect_file_details(app: &CodebaseApp, max_size: i64) -> Vec<FileDetail> {
+fn collect_file_details(app: &CodebaseApp, max_size: i64, options: &ReportOptions) -> Vec<FileDetail> {
     let mut details = Vec::new();
     let root_path = app.root_path.as_deref().unwrap_or_else(|| Path::new(""));
 
@@ -253,15 +274,20 @@ fn collect_file_details(app: &CodebaseApp, max_size: i64) -> Vec<FileDetail> {
             } else {
                 // Use the preview module's reader which handles size limits and encoding
                 preview::read_file_content(path, max_size)
-                // Map potential read errors to the Err variant of the content result
-                // .map_err(|e| format!("[Error reading file: {}]", e))
+            };
+
+            // Conditionally prepend line numbers
+            let final_content = if options.include_line_numbers {
+                content_result.map(|text| prepend_line_numbers(&text))
+            } else {
+                content_result
             };
 
             details.push(FileDetail {
                 relative_path,
                 size: node.info.human_size.clone(),
                 modified: modified_str,
-                content: content_result,
+                content: final_content,
             });
         }
     }

@@ -96,6 +96,10 @@ pub struct ReportCliOptions {
     /// Exclude file contents from the report context.
     #[arg(long, default_value_t = false)]
     pub no_contents: bool,
+
+    /// Exclude line numbers from file content in the report context.
+    #[arg(long, default_value_t = false)]
+    pub no_line_numbers: bool,
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy)]
@@ -164,7 +168,7 @@ pub async fn run_cli_command(command: Commands) -> anyhow::Result<()> {
             )
             .await?;
             println!("\n--- AI Response ---\n");
-            println!("{}", response);
+            println!("{response}");
         }
     }
 
@@ -215,7 +219,7 @@ fn generate_report_headless(
                 &selection_path,
             )?;
             app_state.recalculate_all_parent_states(root_id);
-            println!("Selection loaded for root: {}", selection_applied);
+            println!("Selection loaded for root: {selection_applied}");
         }
     } else {
         bail!(
@@ -231,6 +235,7 @@ fn generate_report_headless(
         },
         include_stats: !report_opts.no_stats,
         include_contents: !report_opts.no_contents,
+        include_line_numbers: !report_opts.no_line_numbers,
     };
 
     app_state.last_report_options = report_options.clone();
