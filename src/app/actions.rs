@@ -11,7 +11,7 @@ use crate::{
     task::TaskMessage,
 };
 use arboard::Clipboard;
-use std::{env, fs as std_fs, path::PathBuf, sync::atomic::Ordering, thread};
+use std::{fs as std_fs, path::PathBuf, sync::atomic::Ordering, thread};
 use tokio::runtime::Builder;
 
 impl CodebaseApp {
@@ -63,6 +63,7 @@ impl CodebaseApp {
         self.preview_cache = None;
         self.orphaned_children.clear();
         self.path_to_id_map.clear();
+        self.mark_report_preview_dirty();
         self.status_message = format!(
             "Scanning {}...",
             path.file_name().map_or_else(
@@ -266,6 +267,7 @@ impl CodebaseApp {
                     if let Some(root_id) = self.root_id {
                         self.recalculate_all_parent_states(root_id);
                     }
+                    self.mark_report_preview_dirty();
                 }
                 Err(e) => {
                     log::error!("Failed to load selection: {e}");
@@ -431,12 +433,10 @@ impl CodebaseApp {
             return;
         }
 
-        let api_key = env::var("GEMINI_API_KEY")
-            .ok()
-            .or_else(|| self.config.gemini_api_key.clone());
+        let api_key = self.resolve_gemini_api_key();
 
         let Some(api_key) = api_key else {
-            let message = "Gemini API key not set. Provide GEMINI_API_KEY env var or configure it in Preferences.".to_string();
+            let message = "Gemini API key not set. Provide GOOGLE_API_KEY or GEMINI_API_KEY, or configure it in Preferences.".to_string();
             self.ai_response_text = Some(message.clone());
             self.status_message = message;
             log::error!("{}", self.status_message);

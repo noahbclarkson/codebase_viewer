@@ -30,6 +30,37 @@ pub(crate) enum BackgroundTask {
     Report(JoinHandle<()>),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TokenStatus {
+    NotApplicable,
+    Idle,
+    Loading,
+    Ready {
+        total_tokens: i64,
+        cached_tokens: Option<i64>,
+    },
+    Error(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct PreviewExclusion {
+    pub path: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReportPreviewState {
+    pub last_options: ReportOptions,
+    pub selection_fingerprint: u64,
+    pub selected_files: usize,
+    pub included_files: usize,
+    pub total_characters: usize,
+    pub preview_text: String,
+    pub excluded_files: Vec<PreviewExclusion>,
+    pub token_status: TokenStatus,
+    pub pending_job_id: Option<u64>,
+}
+
 /// The main application struct, holding all state.
 pub struct CodebaseApp {
     // --- Configuration ---
@@ -55,6 +86,9 @@ pub struct CodebaseApp {
     pub(crate) focus_search_box: bool,
     pub(crate) prefs_draft: Option<AppConfig>,
     pub(crate) report_options_draft: Option<ReportOptions>,
+    pub(crate) report_preview_state: Option<ReportPreviewState>,
+    pub(crate) report_preview_dirty: bool,
+    pub(crate) next_token_job_id: u64,
 
     // --- Data State ---
     pub(crate) nodes: Vec<FileNode>,
@@ -136,6 +170,9 @@ impl CodebaseApp {
             path_to_id_map: HashMap::new(),
             prefs_draft: None,
             report_options_draft: None,
+            report_preview_state: None,
+            report_preview_dirty: true,
+            next_token_job_id: 1,
         }
     }
 
@@ -164,6 +201,9 @@ impl CodebaseApp {
             focus_search_box: false,
             prefs_draft: None,
             report_options_draft: None,
+            report_preview_state: None,
+            report_preview_dirty: true,
+            next_token_job_id: 1,
             nodes: Vec::new(),
             root_id: None,
             root_path: None,

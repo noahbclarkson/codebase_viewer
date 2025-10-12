@@ -86,6 +86,7 @@ regex = "1.11.1"
 egui-phosphor = "0.9"
 egui_material_icons = "0.3.0"
 arboard = "3.6"
+reqwest = { version = "0.12.9", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 parking_lot = "0.12"
 tokei = "12.1.2"
 clap = { version = "4.5.47", features = ["derive"] }

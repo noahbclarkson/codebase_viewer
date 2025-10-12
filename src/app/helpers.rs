@@ -89,6 +89,7 @@ impl CodebaseApp {
                 }
             }
         }
+        self.mark_report_preview_dirty();
     }
 
     /// Recursively sets the expansion state for a node and all its descendants.
@@ -142,6 +143,7 @@ impl CodebaseApp {
                 }
             }
         }
+        self.mark_report_preview_dirty();
     }
 
     /// Finds the `FileId` of the parent node containing `child_id`.

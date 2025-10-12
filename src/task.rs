@@ -1,9 +1,12 @@
 //! Defines message types used for communication between the UI thread and background tasks.
 
 use crate::{
-    fs::ScanStats,                 // Use ScanStats from fs module
-    llm::gemini_service::AppError, // Error type for AI queries
-    model::FileNode,               // Use FileNode from model module
+    fs::ScanStats, // Use ScanStats from fs module
+    llm::{
+        gemini_service::AppError, // Error type for AI queries
+        token_counter::{TokenCountError, TokenCountSummary},
+    },
+    model::FileNode, // Use FileNode from model module
 };
 use std::path::PathBuf;
 
@@ -34,5 +37,9 @@ pub enum TaskMessage {
     /// `Err` contains an error message describing the failure.
     ReportFinished(Result<PathBuf, String>),
     AIResponse(Result<String, AppError>),
+    TokenCountFinished {
+        job_id: u64,
+        result: Result<TokenCountSummary, TokenCountError>,
+    },
     // Could add other task types here later, e.g., PreviewFinished(Result<PreviewCache, String>)
 }

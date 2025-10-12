@@ -135,6 +135,15 @@ pub fn format_report_content(data: &ReportData, options: &ReportOptions) -> anyh
 
 // --- Helper Functions ---
 
+/// Collects file details for previewing report content in the UI.
+pub fn preview_file_details(app: &CodebaseApp, options: &ReportOptions) -> Vec<FileDetail> {
+    if options.include_contents {
+        collect_file_details(app, app.config.max_file_size_preview, options)
+    } else {
+        collect_file_details_metadata_only(app)
+    }
+}
+
 /// Generates a text representation of the file tree structure.
 ///
 /// # Arguments

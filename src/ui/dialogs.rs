@@ -1,7 +1,7 @@
 //! Functions for drawing modal dialog windows (Preferences, Report Options, About, Shortcuts).
 
 use crate::{
-    app::{AppAction, CodebaseApp},
+    app::{state::TokenStatus, AppAction, CodebaseApp},
     report::ReportFormat,
 };
 use egui::{Button, Color32, Context, DragValue, Grid, RichText, ScrollArea, TextEdit, Window};
@@ -118,10 +118,10 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
                                 .add(
                                     egui::TextEdit::singleline(&mut key_value)
                                         .password(true)
-                                        .hint_text("Use GEMINI_API_KEY env var to avoid storing locally"),
+                                        .hint_text("Use GOOGLE_API_KEY or GEMINI_API_KEY env vars to avoid storing locally"),
                                 )
                                 .on_hover_text(
-                                    "Stored locally if provided. Leave blank to rely on GEMINI_API_KEY environment variable.",
+                                    "Stored locally if provided. Leave blank to rely on GOOGLE_API_KEY or GEMINI_API_KEY environment variables.",
                                 );
                             if response.changed() {
                                 let trimmed = key_value.trim();
@@ -267,13 +267,15 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
     let mut cancel_clicked = false;
     let mut is_open = true;
 
-    if let Some(draft) = app.report_options_draft.as_mut() {
+    if let Some(mut draft) = app.report_options_draft.take() {
         Window::new("Generate Report Options")
             .open(&mut is_open)
             .resizable(false)
             .collapsible(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
+                let previous_options = draft.clone();
+
                 Grid::new("report_opts_grid")
                     .num_columns(2)
                     .spacing([40.0, 8.0])
@@ -320,6 +322,106 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
                         ui.end_row();
                     });
 
+                if draft != previous_options {
+                    app.mark_report_preview_dirty();
+                }
+
+                ui.separator();
+                ui.heading("Selected Content Preview");
+                ui.add_space(4.0);
+
+                if draft.include_contents {
+                    if let Some(preview_state) = app.ensure_report_preview(&draft) {
+                        ui.label(format!(
+                            "Selected files: {} | Included in preview: {}",
+                            preview_state.selected_files, preview_state.included_files
+                        ));
+                        ui.label(format!(
+                            "Characters in preview: {}",
+                            preview_state.total_characters
+                        ));
+
+                        match &preview_state.token_status {
+                            TokenStatus::NotApplicable => {
+                                ui.label(
+                                    RichText::new(
+                                        "Token count unavailable (no previewable content).",
+                                    )
+                                    .weak(),
+                                );
+                            }
+                            TokenStatus::Idle => {
+                                ui.label("Preparing token count request...");
+                            }
+                            TokenStatus::Loading => {
+                                ui.horizontal(|ui| {
+                                    ui.spinner();
+                                    ui.label("Counting tokens via Gemini...");
+                                });
+                            }
+                            TokenStatus::Ready {
+                                total_tokens,
+                                cached_tokens,
+                            } => {
+                                let mut message =
+                                    format!("Tokens (Gemini 2.5 Pro): {}", total_tokens);
+                                if let Some(cached) = cached_tokens {
+                                    message.push_str(&format!(" | Cached context: {}", cached));
+                                }
+                                ui.label(RichText::new(message).strong());
+                            }
+                            TokenStatus::Error(msg) => {
+                                ui.colored_label(Color32::RED, format!("Token count failed: {msg}"));
+                            }
+                        }
+
+                        if !preview_state.excluded_files.is_empty() {
+                            ui.add_space(6.0);
+                            ui.colored_label(
+                                Color32::from_rgb(230, 180, 40),
+                                format!(
+                                    "Skipped {} file(s) (content unavailable):",
+                                    preview_state.excluded_files.len()
+                                ),
+                            );
+                            for exclusion in &preview_state.excluded_files {
+                                ui.label(format!(
+                                    "• {} — {}",
+                                    exclusion.path, exclusion.reason
+                                ));
+                            }
+                        }
+
+                        ui.add_space(6.0);
+                        if preview_state.included_files > 0
+                            && !preview_state.preview_text.trim().is_empty()
+                        {
+                            ScrollArea::vertical()
+                                .max_height(220.0)
+                                .show(ui, |ui| {
+                                    ui.add(
+                                        egui::Label::new(
+                                            RichText::new(preview_state.preview_text.as_str())
+                                                .monospace(),
+                                        )
+                                        .wrap(),
+                                    );
+                                });
+                        } else {
+                            ui.label("No file contents are currently included in the preview.");
+                        }
+                    } else {
+                        ui.label("Preparing preview...");
+                    }
+                } else {
+                    ui.label(
+                        RichText::new(
+                            "Enable 'Include File Contents' to view the content preview and token usage.",
+                        )
+                        .weak(),
+                    );
+                }
+
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -352,6 +454,8 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
                     });
                 });
             });
+
+        app.report_options_draft = Some(draft);
     }
 
     if cancel_clicked || !is_open {

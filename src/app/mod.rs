@@ -14,6 +14,7 @@ use egui::{Context, Key, Modifiers};
 mod actions;
 mod helpers;
 mod message_handling;
+mod report_preview;
 pub mod state;
 
 // Re-export the main app struct and action enum for easier use in other modules.

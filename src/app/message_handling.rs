@@ -1,8 +1,9 @@
 //! Handles messages received from background tasks (scanner, report generator).
 
-use super::state::CodebaseApp;
+use super::state::{CodebaseApp, TokenStatus};
 use crate::external;
 use crate::{
+    llm::token_counter::{TokenCountError, TokenCountSummary},
     model::FileNode,
     task::{ScanMessage, TaskMessage},
 };
@@ -94,8 +95,40 @@ impl CodebaseApp {
                             }
                         }
                     }
+                    TaskMessage::TokenCountFinished { job_id, result } => {
+                        self.handle_token_count_finished(job_id, result);
+                    }
                 }
             }
+        }
+    }
+
+    fn handle_token_count_finished(
+        &mut self,
+        job_id: u64,
+        result: Result<TokenCountSummary, TokenCountError>,
+    ) {
+        if let Some(state) = self.report_preview_state.as_mut() {
+            if state.pending_job_id == Some(job_id) {
+                state.pending_job_id = None;
+                match result {
+                    Ok(summary) => {
+                        state.token_status = TokenStatus::Ready {
+                            total_tokens: summary.total_tokens,
+                            cached_tokens: summary.cached_content_token_count,
+                        };
+                    }
+                    Err(err) => {
+                        state.token_status = TokenStatus::Error(err.to_string());
+                    }
+                }
+            } else {
+                log::debug!("Ignoring stale token count result for job {job_id}.");
+            }
+        } else {
+            log::debug!(
+                "Token count result received for job {job_id}, but no preview state is active."
+            );
         }
     }
 
@@ -265,5 +298,6 @@ impl CodebaseApp {
                 }
             }
         }
+        self.mark_report_preview_dirty();
     }
 }

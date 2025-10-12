@@ -84,4 +84,6 @@ pub mod markdown;
 pub mod text;
 
 // --- Re-exports ---
-pub use generator::{collect_report_data, format_report_content, generate_report};
+pub use generator::{
+    collect_report_data, format_report_content, generate_report, preview_file_details,
+};
