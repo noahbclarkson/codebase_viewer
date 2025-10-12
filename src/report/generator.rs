@@ -244,7 +244,11 @@ fn build_tree_string_recursive(
 
 /// Collects content and metadata for all *selected* files.
 /// Reads file content based on `max_size` limit.
-fn collect_file_details(app: &CodebaseApp, max_size: i64, options: &ReportOptions) -> Vec<FileDetail> {
+fn collect_file_details(
+    app: &CodebaseApp,
+    max_size: i64,
+    options: &ReportOptions,
+) -> Vec<FileDetail> {
     let mut details = Vec::new();
     let root_path = app.root_path.as_deref().unwrap_or_else(|| Path::new(""));
 

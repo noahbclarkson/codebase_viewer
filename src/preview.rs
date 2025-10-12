@@ -1,7 +1,7 @@
 //! Handles generation of file content previews (text highlighting, images).
 
 use crate::config::AppConfig;
-use egui::{text::LayoutJob, Color32, Context, FontId, Sense, TextureHandle, Vec2};
+use egui::{text::LayoutJob, Color32, Context, FontId, TextureHandle, Vec2};
 use egui_phosphor::regular::*;
 use log;
 use once_cell::sync::Lazy;
@@ -132,15 +132,13 @@ pub fn generate_preview(
             PreviewContent::Unsupported("PDF preview not yet implemented".to_string()),
             None,
         ),
-        _ => {
-            match highlight_text_content(config, syntax_set, theme_set, path) {
-                Ok((lines, theme_name)) => (PreviewContent::Text(lines), Some(theme_name)),
-                Err(e) => {
-                    let fallback_theme = get_fallback_theme_name(config);
-                    (PreviewContent::Error(e), Some(fallback_theme))
-                }
+        _ => match highlight_text_content(config, syntax_set, theme_set, path) {
+            Ok((lines, theme_name)) => (PreviewContent::Text(lines), Some(theme_name)),
+            Err(e) => {
+                let fallback_theme = get_fallback_theme_name(config);
+                (PreviewContent::Error(e), Some(fallback_theme))
             }
-        }
+        },
     };
 
     PreviewCache {
@@ -174,6 +172,7 @@ fn highlight_text_content(
 
     let mut highlighter = HighlightLines::new(syntax, theme);
     let font_id = FontId::monospace(12.0);
+    let line_height = (font_id.size + 1.0).round();
     let line_count = content.lines().count();
     let line_number_width = if line_count == 0 {
         1
@@ -194,7 +193,8 @@ fn highlight_text_content(
             egui::TextFormat {
                 font_id: font_id.clone(),
                 color: Color32::GRAY,
-                valign: egui::Align::BOTTOM,
+                line_height: Some(line_height),
+                valign: egui::Align::Center,
                 ..Default::default()
             },
         );
@@ -214,8 +214,12 @@ fn highlight_text_content(
                     let underline = style
                         .font_style
                         .contains(syntect::highlighting::FontStyle::UNDERLINE);
+                    let display_text = text.trim_end_matches(|c| c == '\n' || c == '\r');
+                    if display_text.is_empty() && text.chars().any(|c| c == '\n' || c == '\r') {
+                        continue;
+                    }
                     content_job.append(
-                        text,
+                        display_text,
                         0.0,
                         egui::TextFormat {
                             font_id: font_id.clone(),
@@ -226,7 +230,8 @@ fn highlight_text_content(
                             } else {
                                 egui::Stroke::NONE
                             },
-                            valign: egui::Align::BOTTOM,
+                            line_height: Some(line_height),
+                            valign: egui::Align::Center,
                             ..Default::default()
                         },
                     );
@@ -234,16 +239,20 @@ fn highlight_text_content(
             }
             Err(e) => {
                 log::error!("Syntect highlighting error on line {line_number}: {e}");
-                content_job.append(
-                    line,
-                    0.0,
-                    egui::TextFormat {
-                        font_id: font_id.clone(),
-                        color: Color32::RED,
-                        valign: egui::Align::BOTTOM,
-                        ..Default::default()
-                    },
-                );
+                let display_text = line.trim_end_matches(|c| c == '\n' || c == '\r');
+                if !display_text.is_empty() || !line.chars().any(|c| c == '\n' || c == '\r') {
+                    content_job.append(
+                        display_text,
+                        0.0,
+                        egui::TextFormat {
+                            font_id: font_id.clone(),
+                            color: Color32::RED,
+                            line_height: Some(line_height),
+                            valign: egui::Align::Center,
+                            ..Default::default()
+                        },
+                    );
+                }
             }
         }
 
@@ -378,19 +387,33 @@ fn get_fallback_theme_name(config: &AppConfig) -> String {
 }
 
 /// Helper function to render a `PreviewContent` enum variant into the UI.
-pub(crate) fn render_preview_content(ui: &mut egui::Ui, content: &PreviewContent, word_wrap: bool, selectable_line_numbers: bool) {
+pub(crate) fn render_preview_content(
+    ui: &mut egui::Ui,
+    content: &PreviewContent,
+    word_wrap: bool,
+    selectable_line_numbers: bool,
+) {
     match content {
         PreviewContent::Text(lines) => {
+            {
+                let spacing = ui.spacing_mut();
+                spacing.item_spacing = Vec2::splat(0.0);
+                spacing.interact_size.y = 0.0;
+            }
+
             for line in lines {
-                ui.horizontal(|ui| {
+                ui.horizontal_top(|ui| {
+                    {
+                        let spacing = ui.spacing_mut();
+                        spacing.item_spacing = Vec2::splat(0.0);
+                        spacing.interact_size.y = 0.0;
+                    }
+
                     let mut line_num_job = line.line_number_job.clone();
                     line_num_job.wrap.max_width = f32::INFINITY;
-
-                    if selectable_line_numbers {
-                        ui.add(egui::Label::new(line_num_job).sense(Sense::click_and_drag()));
-                    } else {
-                        ui.add(egui::Label::new(line_num_job).sense(Sense::hover()));
-                    }
+                    let line_num_label =
+                        egui::Label::new(line_num_job).selectable(selectable_line_numbers);
+                    ui.add(line_num_label);
 
                     let mut content_job = line.content_job.clone();
                     content_job.wrap.break_anywhere = word_wrap;
@@ -399,7 +422,15 @@ pub(crate) fn render_preview_content(ui: &mut egui::Ui, content: &PreviewContent
                     } else {
                         f32::INFINITY
                     };
-                    ui.add(egui::Label::new(content_job).sense(Sense::click_and_drag()));
+                    let mut content_label = egui::Label::new(content_job).selectable(true);
+
+                    if word_wrap {
+                        content_label = content_label.wrap();
+                    } else {
+                        content_label = content_label.extend();
+                    }
+
+                    ui.add(content_label);
                 });
             }
         }

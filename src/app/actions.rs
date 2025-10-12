@@ -463,24 +463,26 @@ impl CodebaseApp {
         };
         let context_result = report::generate_report(self, &report_options);
 
-        thread::spawn(move || {
-            let result = match context_result {
-                Ok(context) => match Builder::new_current_thread().enable_all().build() {
-                    Ok(runtime) => runtime.block_on(gemini_service::query_codebase(
-                        &api_key,
-                        "gemini-2.5-pro",
-                        context,
-                        prompt,
-                        2.0,
-                    )),
+        let _ = thread::Builder::new()
+            .name("ai_query".to_string())
+            .spawn(move || {
+                let result = match context_result {
+                    Ok(context) => match Builder::new_current_thread().enable_all().build() {
+                        Ok(runtime) => runtime.block_on(gemini_service::query_codebase(
+                            &api_key,
+                            "gemini-2.5-pro",
+                            context,
+                            prompt,
+                            2.0,
+                        )),
+                        Err(err) => Err(gemini_service::AppError::Internal(err.to_string())),
+                    },
                     Err(err) => Err(gemini_service::AppError::Internal(err.to_string())),
-                },
-                Err(err) => Err(gemini_service::AppError::Internal(err.to_string())),
-            };
+                };
 
-            if task_sender.send(TaskMessage::AIResponse(result)).is_err() {
-                log::warn!("Failed to send AI response result to UI thread.");
-            }
-        });
+                if task_sender.send(TaskMessage::AIResponse(result)).is_err() {
+                    log::warn!("Failed to send AI response result to UI thread.");
+                }
+            });
     }
 }

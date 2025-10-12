@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_macros)]
+
 use std::{env, fs, path::PathBuf};
 
 use anyhow::{anyhow, bail, Context};

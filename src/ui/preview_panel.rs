@@ -23,19 +23,11 @@ pub fn draw_preview_panel(app: &mut CodebaseApp, ui: &mut Ui) {
             )
             .on_hover_text("Toggle Line Number Selection");
 
-            let word_wrap_button = ui
-                .toggle_value(
-                    &mut app.preview_word_wrap,
-                    RichText::new(TEXT_ALIGN_JUSTIFY),
-                )
-                .on_hover_text("Toggle Word Wrap");
-
-            if word_wrap_button.clicked() {
-                app.preview_cache = None;
-                if let Some(id) = app.selected_node_id {
-                    app.trigger_preview_load(id, ui.ctx());
-                }
-            }
+            ui.toggle_value(
+                &mut app.preview_word_wrap,
+                RichText::new(TEXT_ALIGN_JUSTIFY),
+            )
+            .on_hover_text("Toggle Word Wrap");
         });
     });
     ui.separator();
