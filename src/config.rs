@@ -35,6 +35,12 @@ pub struct AppConfig {
     pub export_include_contents: bool,
     /// Default setting for including line numbers in report file contents.
     pub export_include_line_numbers: bool,
+    /// Whether to show token counts in the file tree.
+    pub show_token_counts: bool,
+    /// Maximum file size (bytes) to include in token counting per file.
+    pub max_file_size_token_count: u64,
+    /// Maximum file size (bytes) to cache in memory per file during token counting.
+    pub max_file_size_token_cache: u64,
     /// List of recently opened project directory paths (absolute paths).
     pub recent_projects: Vec<PathBuf>,
     /// Stored Gemini API key fallback when environment variable is not set.
@@ -54,7 +60,10 @@ impl Default for AppConfig {
             export_format: "markdown".to_string(),
             export_include_stats: true,
             export_include_contents: true,
-            export_include_line_numbers: true,
+            export_include_line_numbers: false,
+            show_token_counts: false,
+            max_file_size_token_count: 10 * 1024 * 1024, // 10 MiB
+            max_file_size_token_cache: 500 * 1024,       // 500 KiB
             recent_projects: Vec::new(),
             gemini_api_key: None,
         }

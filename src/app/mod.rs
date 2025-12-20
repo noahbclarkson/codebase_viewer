@@ -39,6 +39,8 @@ pub(crate) enum AppAction {
     CopyReport(crate::report::ReportOptions),
     StartScan(std::path::PathBuf),
     CancelScan,
+    CalculateTokens,
+    CancelTokenCalculation,
     FocusSearchBox,
     QueryAI(String),
 }
@@ -60,7 +62,12 @@ impl eframe::App for CodebaseApp {
         self.process_deferred_actions();
 
         // 5. Request a repaint if needed to keep the UI responsive
-        if self.is_scanning || self.is_generating_report || had_actions || self.focus_search_box {
+        if self.is_scanning
+            || self.is_generating_report
+            || self.is_calculating_tokens
+            || had_actions
+            || self.focus_search_box
+        {
             ctx.request_repaint_after(std::time::Duration::from_millis(30));
         }
     }
@@ -92,8 +99,12 @@ impl CodebaseApp {
                 let selected_after = self.selected_node_id;
 
                 if selected_before != selected_after {
-                    if let Some(new_id) = selected_after {
-                        self.trigger_preview_load(new_id, ctx);
+                    if self.show_preview_panel {
+                        if let Some(new_id) = selected_after {
+                            self.trigger_preview_load(new_id, ctx);
+                        } else {
+                            self.preview_cache = None;
+                        }
                     } else {
                         self.preview_cache = None;
                     }
@@ -166,6 +177,13 @@ impl CodebaseApp {
                 self.queue_action(AppAction::CollapseAllNodes);
             } else if i.consume_shortcut(&toggle_preview_shortcut) {
                 self.show_preview_panel = !self.show_preview_panel;
+                if self.show_preview_panel {
+                    if let Some(selected_id) = self.selected_node_id {
+                        self.trigger_preview_load(selected_id, ctx);
+                    }
+                } else {
+                    self.preview_cache = None;
+                }
             } else if i.consume_shortcut(&prefs_shortcut) {
                 self.show_preferences_window = true;
             }

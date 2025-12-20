@@ -3,7 +3,7 @@
 use super::{state::CodebaseApp, AppAction};
 use crate::{
     external,
-    fs::scanner,
+    fs::{scanner, token_worker},
     llm::gemini_service,
     model::Check,
     report::{self, ReportFormat, ReportOptions},
@@ -36,6 +36,8 @@ impl CodebaseApp {
                 AppAction::CopyReport(opts) => self.perform_copy_report(opts),
                 AppAction::StartScan(path) => self.perform_start_scan(path),
                 AppAction::CancelScan => self.perform_cancel_scan(),
+                AppAction::CalculateTokens => self.perform_calculate_tokens(),
+                AppAction::CancelTokenCalculation => self.cancel_token_calculation(),
                 AppAction::FocusSearchBox => self.perform_focus_search_box(),
                 AppAction::QueryAI(query) => self.perform_query_ai(query),
             }
@@ -50,6 +52,7 @@ impl CodebaseApp {
             self.status_message = "Busy with another task (scan/report).".to_string();
             return;
         }
+        self.cancel_token_calculation();
         log::info!("Starting scan for directory: {}", path.display());
         self.root_path = Some(path.clone());
         self.config.add_recent_project(path.clone());
@@ -61,8 +64,13 @@ impl CodebaseApp {
         self.selected_node_id = None;
         self.scan_stats = Some(Default::default());
         self.preview_cache = None;
+        self.content_cache.clear();
         self.orphaned_children.clear();
         self.path_to_id_map.clear();
+        self.tree_rows_cache.clear();
+        self.tree_rows_search.clear();
+        self.tree_rows_root_id = None;
+        self.tree_rows_dirty = true;
         self.mark_report_preview_dirty();
         self.status_message = format!(
             "Scanning {}...",
@@ -93,6 +101,94 @@ impl CodebaseApp {
         }
     }
 
+    fn perform_calculate_tokens(&mut self) {
+        if self.is_scanning {
+            log::info!("Skipping token calculation while scan is running.");
+            return;
+        }
+        if self.is_calculating_tokens {
+            return;
+        }
+        if self.root_id.is_none() {
+            return;
+        }
+        let task_sender = match self.task_sender.clone() {
+            Some(sender) => sender,
+            None => {
+                log::warn!("Token counting unavailable: task channel missing.");
+                return;
+            }
+        };
+
+        for node in &mut self.nodes {
+            node.token_count = None;
+        }
+
+        let max_count_size = self.config.max_file_size_token_count;
+        let max_cache_size = self.config.max_file_size_token_cache;
+
+        if max_cache_size == 0 {
+            self.content_cache.clear();
+        } else {
+            self.content_cache.retain(|id, _| {
+                self.nodes
+                    .get(*id)
+                    .is_some_and(|node| node.info.size <= max_cache_size)
+            });
+        }
+
+        if max_count_size == 0 {
+            log::info!("Token counting disabled (max_file_size_token_count is 0).");
+            return;
+        }
+
+        let files: Vec<_> = self
+            .nodes
+            .iter()
+            .enumerate()
+            .filter(|(_, node)| {
+                !node.is_dir()
+                    && !node.info.is_binary
+                    && max_count_size > 0
+                    && node.info.size <= max_count_size
+            })
+            .map(|(id, node)| token_worker::TokenWorkItem {
+                id,
+                path: node.path().to_path_buf(),
+                is_binary: node.info.is_binary,
+            })
+            .collect();
+
+        if files.is_empty() {
+            return;
+        }
+
+        let job_id = self.next_token_worker_job_id;
+        self.next_token_worker_job_id = self.next_token_worker_job_id.wrapping_add(1);
+        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        self.token_worker_cancel = Some(cancel.clone());
+        self.token_worker_job_id = Some(job_id);
+        self.is_calculating_tokens = true;
+
+        token_worker::start_token_calculation(
+            job_id,
+            files,
+            max_cache_size,
+            max_count_size,
+            task_sender,
+            cancel,
+        );
+    }
+
+    fn cancel_token_calculation(&mut self) {
+        if let Some(cancel) = &self.token_worker_cancel {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        self.token_worker_cancel = None;
+        self.token_worker_job_id = None;
+        self.is_calculating_tokens = false;
+    }
+
     fn perform_toggle_check_state(&mut self, node_id: crate::model::FileId) {
         let new_state = if let Some(node) = self.nodes.get(node_id) {
             match node.state {
@@ -112,6 +208,7 @@ impl CodebaseApp {
         if let Some(node) = self.nodes.get_mut(node_id) {
             if node.is_dir() {
                 node.is_expanded = !node.is_expanded;
+                self.tree_rows_dirty = true;
                 log::trace!("Toggled expand state for node {node_id}");
             }
         } else {
@@ -136,6 +233,7 @@ impl CodebaseApp {
     fn perform_expand_all_nodes(&mut self) {
         if let Some(root_id) = self.root_id {
             self.set_node_expansion_recursive(root_id, true);
+            self.tree_rows_dirty = true;
             log::info!("Expanded all nodes.");
         }
     }
@@ -146,6 +244,7 @@ impl CodebaseApp {
             if let Some(node) = self.nodes.get_mut(root_id) {
                 node.is_expanded = true;
             }
+            self.tree_rows_dirty = true;
             log::info!("Collapsed all nodes (except root).");
         }
     }
@@ -459,7 +558,7 @@ impl CodebaseApp {
             format: ReportFormat::Markdown,
             include_stats: true,
             include_contents: true,
-            include_line_numbers: true,
+            include_line_numbers: false,
         };
         let context_result = report::generate_report(self, &report_options);
 

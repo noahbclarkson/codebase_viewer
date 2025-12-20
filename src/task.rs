@@ -41,5 +41,14 @@ pub enum TaskMessage {
         job_id: u64,
         result: Result<TokenCountSummary, TokenCountError>,
     },
+    TokenUpdate {
+        job_id: u64,
+        id: usize,
+        count: usize,
+        content: Option<String>,
+    },
+    TokenCalculationFinished {
+        job_id: u64,
+    },
     // Could add other task types here later, e.g., PreviewFinished(Result<PreviewCache, String>)
 }

@@ -32,6 +32,9 @@ pub struct FileNode {
     /// Whether the node (if a directory) is currently expanded in the tree view.
     #[serde(default)]
     pub is_expanded: bool,
+    /// Token count for file contents, or summed directory totals when available.
+    #[serde(skip)]
+    pub token_count: Option<usize>,
 }
 
 /// Type alias for the index into the `CodebaseApp::nodes` vector, uniquely identifying a node.
@@ -46,6 +49,7 @@ impl FileNode {
             children: Vec::new(),
             state: Check::default(), // Default is Checked
             is_expanded: false,      // Default is collapsed
+            token_count: None,
         }
     }
 

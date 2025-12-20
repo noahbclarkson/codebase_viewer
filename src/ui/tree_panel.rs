@@ -4,7 +4,7 @@ use crate::{
     app::{AppAction, CodebaseApp},
     model::{Check, FileId},
 };
-use egui::{Button, Color32, CornerRadius, Id, RichText, ScrollArea, Ui};
+use egui::{Align, Button, Color32, CornerRadius, Id, Layout, RichText, ScrollArea, Ui};
 use egui_phosphor::regular::*;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -92,12 +92,6 @@ static ICONS: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
         ("o", GEAR_FINE),
     ])
 });
-
-/// A flattened representation of a tree node for virtual scrolling.
-struct TreeRow {
-    id: FileId,
-    depth: usize,
-}
 
 /// Draws the tree panel UI, including toolbar and the scrollable tree view.
 pub fn draw_tree_panel(app: &mut CodebaseApp, ui: &mut Ui) {
@@ -204,18 +198,36 @@ pub fn draw_tree_panel(app: &mut CodebaseApp, ui: &mut Ui) {
 
     // --- Tree View Area (with Virtual Scrolling) ---
     if let Some(root_id) = app.root_id {
-        // 1. Flatten the visible tree into a linear list
-        let mut rows = Vec::new();
-        flatten_tree(app, root_id, 0, &app.search_text.to_lowercase(), &mut rows);
+        let lower_search = app.search_text.to_lowercase();
+        let needs_rebuild = app.tree_rows_dirty
+            || app.tree_rows_root_id != Some(root_id)
+            || app.tree_rows_search != lower_search;
+        if needs_rebuild {
+            let mut rows = Vec::new();
+            flatten_tree(app, root_id, 0, &lower_search, &mut rows);
+            app.tree_rows_cache = rows;
+            app.tree_rows_dirty = false;
+            app.tree_rows_root_id = Some(root_id);
+            app.tree_rows_search = lower_search;
+        }
 
         // 2. Use `show_rows` for efficient virtual scrolling (handles its own scrolling)
         let row_height = ui.spacing().interact_size.y;
-        ScrollArea::vertical().show_rows(ui, row_height, rows.len(), |ui, row_range| {
-            for i in row_range {
-                if let Some(row) = rows.get(i) {
-                    draw_single_row(app, ui, row.id, row.depth);
-                }
-            }
+        ui.scope(|ui| {
+            ui.style_mut().spacing.scroll.floating = false;
+            ui.style_mut().spacing.scroll.bar_inner_margin = 8.0;
+            ScrollArea::vertical().auto_shrink([false; 2]).show_rows(
+                ui,
+                row_height,
+                app.tree_rows_cache.len(),
+                |ui, row_range| {
+                    for i in row_range {
+                        if let Some((id, depth)) = app.tree_rows_cache.get(i).copied() {
+                            draw_single_row(app, ui, id, depth);
+                        }
+                    }
+                },
+            );
         });
     } else if app.is_scanning {
         ui.horizontal(|ui| {
@@ -236,13 +248,13 @@ fn flatten_tree(
     node_id: FileId,
     depth: usize,
     lower_search: &str,
-    rows: &mut Vec<TreeRow>,
+    rows: &mut Vec<(FileId, usize)>,
 ) {
     if !check_search_match_recursive(app, node_id, lower_search) {
         return;
     }
 
-    rows.push(TreeRow { id: node_id, depth });
+    rows.push((node_id, depth));
 
     if let Some(node) = app.nodes.get(node_id) {
         if node.is_dir() && node.is_expanded {
@@ -268,6 +280,7 @@ fn draw_single_row(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId, depth: u
     let node_state = node.state;
     let is_expanded = node.is_expanded;
     let extension = node.info.extension.as_deref().unwrap_or("");
+    let token_count = node.token_count;
 
     // --- Icon Selection ---
     let icon = if is_dir {
@@ -318,10 +331,8 @@ fn draw_single_row(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId, depth: u
         // 3. Icon and Name Label
         let label_text = format!("{icon} {name}");
         let is_selected = app.selected_node_id == Some(node_id);
-        let display_text = if !app.search_text.is_empty()
-            && name
-                .to_lowercase()
-                .contains(&app.search_text.to_lowercase())
+        let display_text = if !app.tree_rows_search.is_empty()
+            && name.to_lowercase().contains(app.tree_rows_search.as_str())
         {
             RichText::new(label_text)
                 .strong()
@@ -329,7 +340,10 @@ fn draw_single_row(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId, depth: u
         } else {
             RichText::new(label_text)
         };
-        let label_response = ui.selectable_label(is_selected, display_text);
+        let previous_wrap = ui.style().wrap_mode;
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+        let label_response = ui.add(egui::SelectableLabel::new(is_selected, display_text));
+        ui.style_mut().wrap_mode = previous_wrap;
 
         if label_response.clicked() {
             app.selected_node_id = Some(node_id);
@@ -338,7 +352,25 @@ fn draw_single_row(app: &mut CodebaseApp, ui: &mut Ui, node_id: FileId, depth: u
             app.queue_action(AppAction::ToggleExpandState(node_id));
         }
 
-        // 4. Context Menu
+        // 4. Token Count Badge
+        if app.config.show_token_counts {
+            if let Some(tokens) = token_count {
+                let text = if tokens >= 1000 {
+                    format!("{:.1}k", tokens as f32 / 1000.0)
+                } else {
+                    tokens.to_string()
+                };
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.label(RichText::new(text).small().weak());
+                });
+            } else if app.is_calculating_tokens {
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.spinner();
+                });
+            }
+        }
+
+        // 5. Context Menu
         label_response.context_menu(|ui| {
             let node_id_clone = node_id;
             // Extract node data first to avoid borrow conflicts

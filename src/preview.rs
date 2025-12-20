@@ -148,6 +148,30 @@ pub fn generate_preview(
     }
 }
 
+pub fn generate_preview_from_string(
+    config: &AppConfig,
+    syntax_set: &'static SyntaxSet,
+    theme_set: &'static ThemeSet,
+    path: &Path,
+    node_id: crate::model::FileId,
+    content: &str,
+) -> PreviewCache {
+    let (content, theme_used) =
+        match highlight_text_content_from_str(config, syntax_set, theme_set, path, content) {
+            Ok((lines, theme_name)) => (PreviewContent::Text(lines), Some(theme_name)),
+            Err(e) => {
+                let fallback_theme = get_fallback_theme_name(config);
+                (PreviewContent::Error(e), Some(fallback_theme))
+            }
+        };
+
+    PreviewCache {
+        node_id,
+        content,
+        theme_used,
+    }
+}
+
 fn highlight_text_content(
     config: &AppConfig,
     syntax_set: &'static SyntaxSet,
@@ -155,6 +179,16 @@ fn highlight_text_content(
     path: &Path,
 ) -> Result<(Vec<HighlightedLine>, String), String> {
     let content = read_file_content(path, config.max_file_size_preview)?;
+    highlight_text_content_from_str(config, syntax_set, theme_set, path, &content)
+}
+
+fn highlight_text_content_from_str(
+    config: &AppConfig,
+    syntax_set: &'static SyntaxSet,
+    theme_set: &'static ThemeSet,
+    path: &Path,
+    content: &str,
+) -> Result<(Vec<HighlightedLine>, String), String> {
     if content.is_empty() {
         return Ok((Vec::new(), get_fallback_theme_name(config)));
     }
@@ -182,7 +216,7 @@ fn highlight_text_content(
 
     let mut highlighted_lines = Vec::new();
 
-    for (i, line) in LinesWithEndings::from(&content).enumerate() {
+    for (i, line) in LinesWithEndings::from(content).enumerate() {
         let line_number = i + 1;
 
         let line_num_str = format!("{line_number:<line_number_width$} │ ");
@@ -214,7 +248,7 @@ fn highlight_text_content(
                     let underline = style
                         .font_style
                         .contains(syntect::highlighting::FontStyle::UNDERLINE);
-                    let display_text = text.trim_end_matches(|c| c == '\n' || c == '\r');
+                    let display_text = text.trim_end_matches(['\n', '\r']);
                     if display_text.is_empty() && text.chars().any(|c| c == '\n' || c == '\r') {
                         continue;
                     }
@@ -239,7 +273,7 @@ fn highlight_text_content(
             }
             Err(e) => {
                 log::error!("Syntect highlighting error on line {line_number}: {e}");
-                let display_text = line.trim_end_matches(|c| c == '\n' || c == '\r');
+                let display_text = line.trim_end_matches(['\n', '\r']);
                 if !display_text.is_empty() || !line.chars().any(|c| c == '\n' || c == '\r') {
                     content_job.append(
                         display_text,
@@ -403,12 +437,6 @@ pub(crate) fn render_preview_content(
 
             for line in lines {
                 ui.horizontal_top(|ui| {
-                    {
-                        let spacing = ui.spacing_mut();
-                        spacing.item_spacing = Vec2::splat(0.0);
-                        spacing.interact_size.y = 0.0;
-                    }
-
                     let mut line_num_job = line.line_number_job.clone();
                     line_num_job.wrap.max_width = f32::INFINITY;
                     let line_num_label =

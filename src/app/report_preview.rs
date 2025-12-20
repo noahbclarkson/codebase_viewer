@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    llm::token_counter::{self, Content},
+    llm::token_counter,
     model::Check,
     report::{self, ReportOptions},
     task::TaskMessage,
@@ -125,6 +125,7 @@ impl CodebaseApp {
         }
 
         let total_characters = preview_text.chars().count();
+        let preview_lines = Self::build_preview_line_ranges(&preview_text);
         let token_status = if options.include_contents && included_files > 0 {
             TokenStatus::Idle
         } else {
@@ -138,6 +139,7 @@ impl CodebaseApp {
             included_files,
             total_characters,
             preview_text,
+            preview_lines,
             excluded_files,
             token_status,
             pending_job_id: None,
@@ -157,14 +159,35 @@ impl CodebaseApp {
         hasher.finish()
     }
 
-    fn start_token_count_job(&mut self, preview_text: &str) -> Result<u64, String> {
-        let api_key = self
-            .resolve_gemini_api_key()
-            .ok_or_else(|| {
-                "Gemini API key not set. Provide GOOGLE_API_KEY, GEMINI_API_KEY, or configure it in Preferences."
-                    .to_string()
-            })?;
+    fn build_preview_line_ranges(text: &str) -> Vec<std::ops::Range<usize>> {
+        let bytes = text.as_bytes();
+        if bytes.is_empty() {
+            return Vec::new();
+        }
 
+        let mut ranges = Vec::new();
+        let mut start = 0usize;
+        for (idx, &byte) in bytes.iter().enumerate() {
+            if byte == b'\n' {
+                let mut end = idx;
+                if end > start && bytes[end - 1] == b'\r' {
+                    end -= 1;
+                }
+                ranges.push(start..end);
+                start = idx + 1;
+            }
+        }
+        if start < bytes.len() {
+            let mut end = bytes.len();
+            if end > start && bytes[end - 1] == b'\r' {
+                end -= 1;
+            }
+            ranges.push(start..end);
+        }
+        ranges
+    }
+
+    fn start_token_count_job(&mut self, preview_text: &str) -> Result<u64, String> {
         let task_sender = self
             .task_sender
             .clone()
@@ -177,9 +200,7 @@ impl CodebaseApp {
         let handle = thread::Builder::new()
             .name(format!("token_count_{job_id}"))
             .spawn(move || {
-                let payload = vec![Content::from_text("user", text)];
-                let result =
-                    token_counter::count_tokens(&api_key, "models/gemini-2.5-pro", payload);
+                let result = token_counter::count_tokens(&text);
                 let _ = task_sender.send(TaskMessage::TokenCountFinished { job_id, result });
             });
 

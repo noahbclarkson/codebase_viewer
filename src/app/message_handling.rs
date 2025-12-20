@@ -98,6 +98,29 @@ impl CodebaseApp {
                     TaskMessage::TokenCountFinished { job_id, result } => {
                         self.handle_token_count_finished(job_id, result);
                     }
+                    TaskMessage::TokenUpdate {
+                        job_id,
+                        id,
+                        count,
+                        content,
+                    } => {
+                        if self.token_worker_job_id == Some(job_id) {
+                            if let Some(node) = self.nodes.get_mut(id) {
+                                node.token_count = Some(count);
+                            }
+                            if let Some(content) = content {
+                                self.content_cache.insert(id, std::sync::Arc::new(content));
+                            }
+                        }
+                    }
+                    TaskMessage::TokenCalculationFinished { job_id } => {
+                        if self.token_worker_job_id == Some(job_id) {
+                            self.is_calculating_tokens = false;
+                            self.token_worker_job_id = None;
+                            self.token_worker_cancel = None;
+                            self.sum_directory_tokens(self.root_id);
+                        }
+                    }
                 }
             }
         }
@@ -207,6 +230,9 @@ impl CodebaseApp {
                     self.orphaned_children.clear();
                 }
                 self.sort_nodes_recursively(self.root_id);
+                if self.config.show_token_counts {
+                    self.queue_action(super::AppAction::CalculateTokens);
+                }
                 if let Some(stats) = &self.scan_stats {
                     if self.config.auto_expand_limit > 0
                         && stats.total_files <= self.config.auto_expand_limit
@@ -240,6 +266,7 @@ impl CodebaseApp {
         let node_id = self.nodes.len();
         self.nodes.push(node);
         self.path_to_id_map.insert(node_path.clone(), node_id);
+        self.tree_rows_dirty = true;
         if self.root_id.is_none() && Some(&node_path) == self.root_path.as_ref() {
             self.root_id = Some(node_id);
             if let Some(root_node) = self.nodes.get_mut(node_id) {

@@ -56,6 +56,7 @@ pub struct ReportPreviewState {
     pub included_files: usize,
     pub total_characters: usize,
     pub preview_text: String,
+    pub preview_lines: Vec<std::ops::Range<usize>>,
     pub excluded_files: Vec<PreviewExclusion>,
     pub token_status: TokenStatus,
     pub pending_job_id: Option<u64>,
@@ -88,6 +89,7 @@ pub struct CodebaseApp {
     pub(crate) report_options_draft: Option<ReportOptions>,
     pub(crate) report_preview_state: Option<ReportPreviewState>,
     pub(crate) report_preview_dirty: bool,
+    pub(crate) report_preview_enabled: bool,
     pub(crate) next_token_job_id: u64,
 
     // --- Data State ---
@@ -97,6 +99,15 @@ pub struct CodebaseApp {
     pub(crate) scan_stats: Option<ScanStats>,
     pub(crate) orphaned_children: HashMap<PathBuf, Vec<(FileId, PathBuf)>>,
     pub(crate) path_to_id_map: HashMap<PathBuf, FileId>,
+    pub(crate) content_cache: HashMap<FileId, Arc<String>>,
+    pub(crate) is_calculating_tokens: bool,
+    pub(crate) token_worker_job_id: Option<u64>,
+    pub(crate) next_token_worker_job_id: u64,
+    pub(crate) token_worker_cancel: Option<Arc<AtomicBool>>,
+    pub(crate) tree_rows_cache: Vec<(FileId, usize)>,
+    pub(crate) tree_rows_dirty: bool,
+    pub(crate) tree_rows_search: String,
+    pub(crate) tree_rows_root_id: Option<FileId>,
 
     // --- Background Task State ---
     pub(crate) scan_receiver: Option<Receiver<ScanMessage>>,
@@ -168,10 +179,20 @@ impl CodebaseApp {
             deferred_actions: Vec::new(),
             orphaned_children: HashMap::new(),
             path_to_id_map: HashMap::new(),
+            content_cache: HashMap::new(),
+            is_calculating_tokens: false,
+            token_worker_job_id: None,
+            next_token_worker_job_id: 1,
+            token_worker_cancel: None,
+            tree_rows_cache: Vec::new(),
+            tree_rows_dirty: true,
+            tree_rows_search: String::new(),
+            tree_rows_root_id: None,
             prefs_draft: None,
             report_options_draft: None,
             report_preview_state: None,
             report_preview_dirty: true,
+            report_preview_enabled: false,
             next_token_job_id: 1,
         }
     }
@@ -203,6 +224,7 @@ impl CodebaseApp {
             report_options_draft: None,
             report_preview_state: None,
             report_preview_dirty: true,
+            report_preview_enabled: false,
             next_token_job_id: 1,
             nodes: Vec::new(),
             root_id: None,
@@ -210,6 +232,15 @@ impl CodebaseApp {
             scan_stats: Some(ScanStats::default()),
             orphaned_children: HashMap::new(),
             path_to_id_map: HashMap::new(),
+            content_cache: HashMap::new(),
+            is_calculating_tokens: false,
+            token_worker_job_id: None,
+            next_token_worker_job_id: 1,
+            token_worker_cancel: None,
+            tree_rows_cache: Vec::new(),
+            tree_rows_dirty: true,
+            tree_rows_search: String::new(),
+            tree_rows_root_id: None,
             scan_receiver: None,
             preview_receiver: None,
             preview_sender: None,
@@ -241,6 +272,10 @@ impl CodebaseApp {
         log::info!("Exit requested. Cleaning up background tasks...");
         if let Some(BackgroundTask::Scan(_, cancel)) = &self.background_task {
             log::info!("Requesting scan cancellation on exit...");
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = &self.token_worker_cancel {
+            log::info!("Requesting token worker cancellation on exit...");
             cancel.store(true, Ordering::Relaxed);
         }
         if self.background_task.take().is_some() {

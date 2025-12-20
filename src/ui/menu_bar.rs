@@ -273,6 +273,29 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                     )
                     .clicked()
                 {
+                    if app.show_preview_panel {
+                        if let Some(selected_id) = app.selected_node_id {
+                            app.trigger_preview_load(selected_id, ctx);
+                        }
+                    } else {
+                        app.preview_cache = None;
+                    }
+                    ui.close_menu();
+                }
+
+                if ui
+                    .checkbox(&mut app.config.show_token_counts, "Show Token Counts")
+                    .changed()
+                {
+                    if app.config.show_token_counts {
+                        app.queue_action(AppAction::CalculateTokens);
+                    } else {
+                        app.queue_action(AppAction::CancelTokenCalculation);
+                    }
+                    if let Err(e) = app.config.save() {
+                        log::error!("Failed to save config after token count toggle: {e}");
+                        app.status_message = format!("Error saving config: {e}");
+                    }
                     ui.close_menu();
                 }
 
@@ -301,8 +324,10 @@ pub fn draw_menu_bar(app: &mut CodebaseApp, ctx: &Context) {
                                 app.status_message = format!("Error saving config: {e}");
                             }
                             app.preview_cache = None;
-                            if app.show_preview_panel && app.selected_node_id.is_some() {
-                                app.trigger_preview_load(app.selected_node_id.unwrap(), ctx);
+                            if app.show_preview_panel {
+                                if let Some(selected_id) = app.selected_node_id {
+                                    app.trigger_preview_load(selected_id, ctx);
+                                }
                             }
                             ui.close_menu();
                         }

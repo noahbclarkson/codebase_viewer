@@ -6,6 +6,7 @@
 pub mod file_info;
 pub mod scanner;
 pub mod stats;
+pub mod token_worker;
 
 // Re-export key types for easier access from other modules (like app.rs)
 pub use file_info::FileInfo;

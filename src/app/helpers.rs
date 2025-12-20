@@ -54,6 +54,42 @@ impl CodebaseApp {
                 }
             }
 
+            let extension = node.info.extension.as_deref().unwrap_or("");
+            let is_text_preview = !matches!(
+                extension,
+                "png" | "jpg" | "jpeg" | "gif" | "bmp" | "ico" | "tiff" | "svg" | "pdf"
+            );
+            let max_size = self.config.max_file_size_preview;
+            let size_allowed = max_size < 0 || node.info.size <= max_size as u64;
+
+            if is_text_preview && size_allowed {
+                if let Some(cached_content) = self.content_cache.get(&node_id).cloned() {
+                    let path = node.path().to_path_buf();
+                    let cfg = self.config.clone();
+                    let ss = self.syntax_set;
+                    let ts = self.theme_set;
+                    let tx = self
+                        .preview_sender
+                        .as_ref()
+                        .expect("Preview sender missing")
+                        .clone();
+                    rayon::spawn_fifo(move || {
+                        let cache_entry = preview::generate_preview_from_string(
+                            &cfg,
+                            ss,
+                            ts,
+                            &path,
+                            node_id,
+                            cached_content.as_str(),
+                        );
+                        if tx.send((node_id, cache_entry)).is_err() {
+                            log::warn!("Failed to send preview result: Channel closed.");
+                        }
+                    });
+                    return;
+                }
+            }
+
             log::trace!("Initiating preview load for node {node_id}");
             let path = node.path().to_path_buf();
             let cfg = self.config.clone();
@@ -192,6 +228,31 @@ impl CodebaseApp {
         } else {
             Check::Unchecked
         }
+    }
+
+    /// Recursively sums token counts for directories.
+    pub(crate) fn sum_directory_tokens(&mut self, node_id: Option<FileId>) -> usize {
+        let Some(id) = node_id else {
+            return 0;
+        };
+        let children = self
+            .nodes
+            .get(id)
+            .map_or(Vec::new(), |node| node.children.clone());
+        let mut sum = 0;
+        for child_id in children {
+            if self.nodes.get(child_id).is_some_and(|node| node.is_dir()) {
+                sum += self.sum_directory_tokens(Some(child_id));
+            } else {
+                sum += self.nodes[child_id].token_count.unwrap_or(0);
+            }
+        }
+        if let Some(node) = self.nodes.get_mut(id) {
+            if node.is_dir() {
+                node.token_count = Some(sum);
+            }
+        }
+        sum
     }
 
     /// Counts the total number of files and the number of selected files.

@@ -261,7 +261,7 @@ fn collect_file_details(
     let mut details = Vec::new();
     let root_path = app.root_path.as_deref().unwrap_or_else(|| Path::new(""));
 
-    for node in &app.nodes {
+    for (node_id, node) in app.nodes.iter().enumerate() {
         // Only include files that are explicitly checked
         if !node.is_dir() && node.state == Check::Checked {
             let path = node.path();
@@ -284,6 +284,13 @@ fn collect_file_details(
             // Attempt to read content, handling binary files and size limits
             let content_result = if node.info.is_binary {
                 Err("[Binary file content not shown]".to_string())
+            } else if let Some(cached) = app.content_cache.get(&node_id) {
+                let size_limit = max_size >= 0;
+                if size_limit && node.info.size > max_size as u64 {
+                    preview::read_file_content(path, max_size)
+                } else {
+                    Ok(cached.as_str().to_string())
+                }
             } else {
                 // Use the preview module's reader which handles size limits and encoding
                 preview::read_file_content(path, max_size)

@@ -69,7 +69,7 @@ disallowed-types = [
     "std::sync::Condvar",
 
     # SHA1 is cryptographically broken.
-    "ring::digest::SHA1_FOR_LEGACY_USE_ONLY",
+    { path = "ring::digest::SHA1_FOR_LEGACY_USE_ONLY", allow-invalid = true },
 ]
 
 # --- Doc Lints ---

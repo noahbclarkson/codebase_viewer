@@ -105,6 +105,35 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
                         });
 
                     ui.separator();
+                    ui.heading("Token Counting");
+                    ui.add_space(4.0);
+                    Grid::new("prefs_token_grid")
+                        .num_columns(2)
+                        .spacing([40.0, 8.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            ui.label("Max Token Count File Size:");
+                            ui.add(
+                                DragValue::new(&mut draft.max_file_size_token_count)
+                                    .speed(1024.0)
+                                    .range(0..=u64::MAX)
+                                    .prefix("Bytes: ")
+                            )
+                            .on_hover_text("Maximum size in bytes to include in token counting per file. Set to 0 to disable token counting.");
+                            ui.end_row();
+
+                            ui.label("Token Cache Limit:");
+                            ui.add(
+                                DragValue::new(&mut draft.max_file_size_token_cache)
+                                    .speed(1024.0)
+                                    .range(0..=u64::MAX)
+                                    .prefix("Bytes: ")
+                            )
+                            .on_hover_text("Maximum size in bytes to cache in memory per file during token counting. Set to 0 to disable caching.");
+                            ui.end_row();
+                        });
+
+                    ui.separator();
                     ui.heading("Integrations");
                     ui.add_space(4.0);
                     Grid::new("prefs_integrations_grid")
@@ -160,14 +189,19 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
             let theme_changed = new_cfg.theme != app.config.theme;
             let hidden_changed = new_cfg.show_hidden_files != app.config.show_hidden_files;
             let cbvignore_changed = new_cfg.respect_cbvignore != app.config.respect_cbvignore;
+            let token_settings_changed = new_cfg.max_file_size_token_count
+                != app.config.max_file_size_token_count
+                || new_cfg.max_file_size_token_cache != app.config.max_file_size_token_cache;
 
             app.config = new_cfg;
 
             if theme_changed {
                 CodebaseApp::set_egui_theme(ctx, &app.config.theme);
                 app.preview_cache = None;
-                if app.show_preview_panel && app.selected_node_id.is_some() {
-                    app.trigger_preview_load(app.selected_node_id.unwrap(), ctx);
+                if app.show_preview_panel {
+                    if let Some(selected_id) = app.selected_node_id {
+                        app.trigger_preview_load(selected_id, ctx);
+                    }
                 }
             }
             if hidden_changed || cbvignore_changed {
@@ -178,6 +212,10 @@ pub fn draw_preferences_window(app: &mut CodebaseApp, ctx: &Context) {
                     );
                     app.queue_action(AppAction::StartScan(root));
                 }
+            }
+            if token_settings_changed && app.config.show_token_counts && app.root_id.is_some() {
+                app.queue_action(AppAction::CancelTokenCalculation);
+                app.queue_action(AppAction::CalculateTokens);
             }
 
             match app.config.save() {
@@ -330,7 +368,26 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
                 ui.heading("Selected Content Preview");
                 ui.add_space(4.0);
 
-                if draft.include_contents {
+                let preview_toggle_changed = ui
+                    .checkbox(&mut app.report_preview_enabled, "Show content preview")
+                    .changed();
+                if preview_toggle_changed {
+                    if app.report_preview_enabled {
+                        app.mark_report_preview_dirty();
+                    } else {
+                        app.report_preview_state = None;
+                        app.report_preview_dirty = true;
+                    }
+                }
+
+                if !app.report_preview_enabled {
+                    ui.label(
+                        RichText::new(
+                            "Preview is disabled. Enable it to render selected file contents.",
+                        )
+                        .weak(),
+                    );
+                } else if draft.include_contents {
                     if let Some(preview_state) = app.ensure_report_preview(&draft) {
                         ui.label(format!(
                             "Selected files: {} | Included in preview: {}",
@@ -351,20 +408,19 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
                                 );
                             }
                             TokenStatus::Idle => {
-                                ui.label("Preparing token count request...");
+                                ui.label("Preparing local token count...");
                             }
                             TokenStatus::Loading => {
                                 ui.horizontal(|ui| {
                                     ui.spinner();
-                                    ui.label("Counting tokens via Gemini...");
+                                    ui.label("Counting tokens locally...");
                                 });
                             }
                             TokenStatus::Ready {
                                 total_tokens,
                                 cached_tokens,
                             } => {
-                                let mut message =
-                                    format!("Tokens (Gemini 2.5 Pro): {}", total_tokens);
+                                let mut message = format!("Tokens (local): {}", total_tokens);
                                 if let Some(cached) = cached_tokens {
                                     message.push_str(&format!(" | Cached context: {}", cached));
                                 }
@@ -396,17 +452,32 @@ pub fn draw_report_options_window(app: &mut CodebaseApp, ctx: &Context) {
                         if preview_state.included_files > 0
                             && !preview_state.preview_text.trim().is_empty()
                         {
+                            let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
                             ScrollArea::vertical()
                                 .max_height(220.0)
-                                .show(ui, |ui| {
-                                    ui.add(
-                                        egui::Label::new(
-                                            RichText::new(preview_state.preview_text.as_str())
-                                                .monospace(),
-                                        )
-                                        .wrap(),
-                                    );
-                                });
+                                .auto_shrink([false; 2])
+                                .show_rows(
+                                    ui,
+                                    row_height,
+                                    preview_state.preview_lines.len(),
+                                    |ui, row_range| {
+                                        let previous_wrap = ui.style().wrap_mode;
+                                        ui.style_mut().wrap_mode =
+                                            Some(egui::TextWrapMode::Extend);
+                                        for i in row_range {
+                                            if let Some(range) = preview_state.preview_lines.get(i)
+                                            {
+                                                let mut line =
+                                                    &preview_state.preview_text[range.clone()];
+                                                if line.is_empty() {
+                                                    line = " ";
+                                                }
+                                                ui.label(RichText::new(line).monospace());
+                                            }
+                                        }
+                                        ui.style_mut().wrap_mode = previous_wrap;
+                                    },
+                                );
                         } else {
                             ui.label("No file contents are currently included in the preview.");
                         }
