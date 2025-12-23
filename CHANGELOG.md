@@ -9,7 +9,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and 
 
 _Nothing yet._
 
-[Unreleased]: https://github.com/noahbclarkson/codebase_viewer/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/noahbclarkson/codebase_viewer/compare/v0.3.0...HEAD
+
+---
+
+## [0.3.0] - 2025-12-24
+
+### Added
+- **Token counting and display**: Local token counting with visual indicators.
+- **Report preview**: Preview reports with token count estimation before generating.
+- **Line number toggles**: Configure line number display in preview and reports.
+- **.cbvignore support**: Custom ignore patterns to exclude files from scans.
+- **Gemini AI integration**: Query and analyze codebases using Gemini AI.
+- **Lines of Code (LOC) analysis**: Comprehensive code metrics via `tokei`.
+
+### Changed
+- **Code preview rendering**: Refactored and improved file preview performance.
+- **Tree panel performance**: Implemented virtual scrolling for large directory trees.
+- **Application architecture**: Major refactoring of state management and concurrency.
+- **String formatting**: Modernized to use latest Rust formatting syntax.
+- **Dependencies**: Updated all Rust dependencies to latest compatible versions.
+- **File preview**: Enhanced usability and responsiveness.
+- **Code quality**: Improved concurrency patterns and general code quality.
+
+### Fixed
+- Critical performance bugs affecting large codebases.
+- Stability issues during long-running scans.
 
 ---
 
@@ -45,6 +70,7 @@ _Nothing yet._
 
 [0.1.1]: https://github.com/noahbclarkson/codebase_viewer/releases/tag/v0.1.1
 [0.1.2]: https://github.com/noahbclarkson/codebase_viewer/releases/tag/v0.1.2
+[0.3.0]: https://github.com/noahbclarkson/codebase_viewer/releases/tag/v0.3.0
 
 ---
 
